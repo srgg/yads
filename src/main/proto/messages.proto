@@ -17,17 +17,17 @@
  * limitations under the License.
  * ​⁣
  */
+syntax = "proto3";
 option java_package = "com.github.srgg.yads.api.message";
-option optimize_for = LITE_RUNTIME;
 
 enum MessageTypes {
-    NodeStatus = 1;
-    ControlMessage = 2;
-    StorageOperation = 3;
+    NodeStatus = 0;
+    ControlMessage = 1;
+    StorageOperation = 2;
 }
 
 enum NodeType {
-    Storage = 1;
-    Master = 2;
+    Storage = 0;
+    Master = 1;
 }
 

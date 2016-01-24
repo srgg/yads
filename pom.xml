@@ -76,7 +76,9 @@
                         <proto>java</proto>
                     </extraExtensions>
 
-                    <roots>src</roots>
+                    <roots>
+                        <root>${project.basedir}/src</root>
+                    </roots>
                 </configuration>
                 <executions>
                     <execution>
@@ -97,10 +99,11 @@
             </plugin>
 
             <plugin>
-                <groupId>com.github.igor-petruk.protobuf</groupId>
-                <artifactId>protobuf-maven-plugin</artifactId>
-                <version>0.6.5</version>
+                <groupId>com.github.os72</groupId>
+                <artifactId>protoc-jar-maven-plugin</artifactId>
+                <version>3.0.0-b2</version>
                 <configuration>
+                    <protocVersion>3.0.0</protocVersion>
                     <inputDirectories>
                         <directory>${project.basedir}/src/main/proto</directory>
                     </inputDirectories>
@@ -333,7 +336,7 @@
         <dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java</artifactId>
-            <version>2.5.0</version>
+            <version>2.6.0</version>
         </dependency>
         <dependency>
             <groupId>org.inferred</groupId>
