@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<!--
+  ⁣​
+  YADS
+  ⁣⁣
+  Copyright (C) 2015 - 2016 srgg
+  ⁣⁣
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+  
+       http://www.apache.org/licenses/LICENSE-2.0
+  
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+  ​⁣
+  -->
+
+
+<!DOCTYPE suppressions PUBLIC
+        "-//Puppy Crawl//DTD Suppressions 1.0//EN"
+        "http://www.puppycrawl.com/dtds/suppressions_1_0.dtd">
+
+<suppressions>
+
+
+    <!-- Somehow it fails on the standart Apache v2 header on each file :( -->
+    <suppress checks="RegexpSingleline"
+              files="(\w+)\.java" />
+
+    <suppress checks="MagicNumber"
+              files="(\w+)\.java" />
+
+    <suppress checks="AvoidStarImport"
+              files="(\w+)\.java" />
+
+    <suppress checks="AvoidInlineConditionals"
+              files="(\w+)\.java" />
+
+    <suppress checks="TodoComment"
+              files="(\w+)\.java" />
+
+    <suppress checks="DesignForExtension"
+              files="(\w+)\.java" />
+
+    <suppress checks="(\w+)"
+              files="TaggedLogger.java" />
+
+
+    <suppress checks="JavadocPackage"
+              files="(\w+)\.java" />
+
+    <!--<suppress checks="JavadocStyleCheck"-->
+              <!--files="(\w+)\.java" />-->
+
+    <suppress checks="JavadocMethod"
+              files="(\w+)\.java" />
+
+    <suppress checks="JavadocVariable"
+              files="(\w+)\.java" />
+
+    <suppress checks="JavadocType"
+              files="(\w+)\.java" />
+
+    <suppress checks="LineLength"
+              files="(\w+)\.java" />
+
+</suppressions>
