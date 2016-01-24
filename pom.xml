@@ -113,6 +113,7 @@
                         <goals>
                             <goal>run</goal>
                         </goals>
+                        <phase>generate-sources</phase>
                     </execution>
                 </executions>
             </plugin>
@@ -202,10 +203,12 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.1</version>
+                <version>3.5</version>
                 <configuration>
                     <source>${java.sdk.version}</source>
                     <target>${java.sdk.version}</target>
+                    <!--<useIncrementalCompilation>false</useIncrementalCompilation>-->
+                    <!--<compilerArgument>-proc:none</compilerArgument>-->
                 </configuration>
             </plugin>
 
@@ -245,9 +248,33 @@
                     </signature>
                 </configuration>
             </plugin>
+            <!--<plugin>-->
+                <!--<groupId>org.bsc.maven</groupId>-->
+                <!--<artifactId>maven-processor-plugin</artifactId>-->
+                <!--<version>3.1.0-beta1</version>-->
+                <!--<executions>-->
+                    <!--<execution>-->
+                        <!--<id>process</id>-->
+                        <!--<goals>-->
+                            <!--<goal>process</goal>-->
+                        <!--</goals>-->
+                        <!--<phase>process-sources</phase>-->
+                    <!--</execution>-->
+                <!--</executions>-->
+                <!--<configuration>-->
+                    <!--<additionalSourceDirectories>-->
+                        <!--<additionalSourceDirectory>target/generated-sources</additionalSourceDirectory>-->
+                    <!--</additionalSourceDirectories>-->
+                    <!--<processors>-->
+                        <!--<processor>org.inferred.freebuilder.processor.Processor</processor>-->
+                    <!--</processors>-->
+                    <!--<outputDirectory>target/generated-sources</outputDirectory>-->
+                <!--</configuration>-->
+            <!--</plugin>-->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>
+                <version>1.4.1</version>
                 <executions>
                     <execution>
                         <id>enforce-build-environment</id>
@@ -336,12 +363,12 @@
         <dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java</artifactId>
-            <version>2.6.0</version>
+            <version>3.0.0-beta-2</version>
         </dependency>
         <dependency>
             <groupId>org.inferred</groupId>
             <artifactId>freebuilder</artifactId>
-            <version>1.4</version>
+            <version>1.6</version>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
