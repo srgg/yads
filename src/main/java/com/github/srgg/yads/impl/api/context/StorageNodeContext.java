@@ -25,5 +25,5 @@ import com.github.srgg.yads.api.messages.StorageOperation;
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
 public interface StorageNodeContext extends NodeContext {
-    OperationExecutionContext contextFor(StorageOperation operation);
+    <T extends StorageOperation> OperationExecutionContext<T> contextFor(T operation);
 }

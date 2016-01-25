@@ -50,7 +50,7 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
 
     // TODO: Requires to have default implementation
     @Override
-    public OperationExecutionContext contextFor(final StorageOperation operation) {
+    public <T extends StorageOperation> OperationExecutionContext<T> contextFor(final T operation) {
         return null;
     }
 
@@ -79,6 +79,10 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
     }
 
     private void updateNodeState(final ControlMessage cm) {
+        EnumSet<ControlMessage.Role> oldRoles = null;
+        boolean chainChanged = false;
+        boolean stateChanged = false;
+
         final NodeState ns = new NodeState();
         final NodeState old = nodeState.get();
 
@@ -88,14 +92,14 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
         if (cm.getType() != null && cm.getType().contains(ControlMessage.Type.SetRole)) {
             checkState(cm.getRoles() != null && !cm.getRoles().isEmpty(), "Roles can't be null");
 
-            EnumSet<ControlMessage.Role> oldRoles = null;
             if (old != null) {
                 oldRoles = old.getRole();
             }
 
             if (!cm.getRoles().equals(oldRoles)) {
                 ns.role = cm.getRoles();
-                onRoleChanged(oldRoles, cm.getRoles());
+            } else {
+                oldRoles = null;
             }
         } else if (old != null && old.getRole() != null) {
             // merge from previous state
@@ -112,10 +116,8 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
             ns.nextNode = cm.getNextNode();
             ns.prevNode = cm.getPrevNode();
 
-            if (!Objects.equals(ns.getNextNode(), oldNext)
-                    || !Objects.equals(ns.getPrevNode(), oldPrev)) {
-                onChainChanged();
-            }
+            chainChanged = !Objects.equals(ns.getNextNode(), oldNext)
+                    || !Objects.equals(ns.getPrevNode(), oldPrev);
         } else if (old != null) {
             // merge from previous state
             ns.nextNode = old.nextNode;
@@ -123,14 +125,25 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
         }
 
         if (cm.getType().contains(ControlMessage.Type.SetState)) {
-            final StorageNode.StorageState st = StorageNode.StorageState.valueOf(cm.getState());
-            ns.state = st;
-            this.node().setState(st.name());
+            ns.state = StorageNode.StorageState.valueOf(cm.getState());
+            stateChanged = true;
         } else if (old != null) {
             ns.state = old.state;
         }
 
         nodeState.set(ns);
+
+        if (oldRoles != null) {
+            onRoleChanged(oldRoles, cm.getRoles());
+        }
+
+        if (chainChanged) {
+            onChainChanged();
+        }
+
+        if (stateChanged) {
+            this.node().setState(ns.state.name());
+        }
     }
 
     protected void onChainChanged() {
