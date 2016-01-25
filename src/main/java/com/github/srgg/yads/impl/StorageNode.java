@@ -61,9 +61,9 @@ public class StorageNode extends AbstractNode<StorageNodeContext> {
     @Override
     protected void onStateChanged(final String old, final String current) {
         super.onStateChanged(old, current);
-        if (State.RUNNING.name().equals(current)) {
+        if (StorageState.RUNNING.name().equals(current)) {
             processingCycle.start();
-        } else if (State.STOPPED.name().equals(old)) {
+        } else if (StorageState.STOPPED.name().equals(current)) {
             processingCycle.stop();
         }
     }
@@ -143,6 +143,7 @@ public class StorageNode extends AbstractNode<StorageNodeContext> {
                 try {
                     thread.join();
                 } catch (InterruptedException ex) {
+                    logger().debug("Got InterruptedException during JOIN to the processing cycle thread");
                 }
                 logger().info("processing cycle has been STOPPED");
             }
