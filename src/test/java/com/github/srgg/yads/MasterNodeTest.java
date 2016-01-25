@@ -19,6 +19,7 @@
  */
 package com.github.srgg.yads;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.javacrumbs.jsonunit.core.Option;
 import org.junit.Before;
@@ -86,10 +87,12 @@ public class MasterNodeTest {
         masterNode.onNodeState("node-1", Messages.NodeType.Storage, "STARTED");
         verifyChain("node-1");
 
+        // Since it is the first node there is no node to recovery from,
+        // therefore the first node should be in RUNNING state
         verifyManageNode("node-1", "{" +
                 "type: ['SetRole', 'SetChain', 'SetState'], " +
                 "roles: ['Head', 'Tail']," +
-                "state:'RECOVERING'," +
+                "state:'RUNNING'," +
                 "prevNode: null," +
                 "nextNode: null" +
                 "}");
@@ -144,7 +147,7 @@ public class MasterNodeTest {
     // TODO: refactor to give human readable error with clear differences
     private void verifyManageNode(String nodeId, String expected) {
         try {
-            final Map<String, Object> values = mapper.readValue(expected, HashMap.class);
+            final Map<String, Object> values = mapper.readValue(expected, new TypeReference<HashMap<String, Object>>(){});
 
             // apply defaults, if needed
             if (!values.containsKey("sender")) {

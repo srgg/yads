@@ -25,6 +25,7 @@ import com.github.srgg.yads.api.messages.ControlMessage;
 import com.github.srgg.yads.impl.AbstractNode;
 import com.github.srgg.yads.impl.MasterNode;
 import com.github.srgg.yads.impl.StorageNode;
+import com.github.srgg.yads.impl.api.Chain;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 import com.github.srgg.yads.impl.context.MasterNodeExecutionContext;
 import com.github.srgg.yads.impl.context.StorageExecutionContext;
@@ -139,7 +140,7 @@ public final class LocalRuntime implements ActivationAware {
         assert nodes.isEmpty();
     }
 
-    public static MasterNode createMasterNode(final String nodeId) throws Exception {
+    public MasterNode createMasterNode(final String nodeId) throws Exception {
         final MasterNode node = new MasterNode(nodeId);
         final MasterNodeExecutionContext ctx = new MasterNodeExecutionContext(transport, node);
         node.configure(ctx);
@@ -149,7 +150,7 @@ public final class LocalRuntime implements ActivationAware {
         return node;
     }
 
-    public List<String> waitForCompleteChain() throws InterruptedException {
+    public List<Chain.INodeInfo<MasterNode.NodeInfo>> waitForCompleteChain() throws InterruptedException {
         checkState(!masterIds.isEmpty(), "Can't wait for chain, there is no master at all");
         final String id = masterIds.iterator().next();
         final MasterNode node = (MasterNode) nodes.get(id);
@@ -157,7 +158,7 @@ public final class LocalRuntime implements ActivationAware {
         for (;;) {
             final int expected = nodes.size() - masterIds.size();
 
-            final List<String> chain = node.chain().asList();
+            final List<Chain.INodeInfo<MasterNode.NodeInfo>> chain = node.chain().asList();
             if (chain.size() == expected) {
                 return chain;
             }

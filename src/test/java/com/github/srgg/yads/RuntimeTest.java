@@ -71,7 +71,7 @@ public class RuntimeTest {
         verifyStorageStates("{" +
                 "storage-1:{" +
                 "role:          ['Head', 'Tail']," +
-                "state:         'RECOVERING'," +
+                "state:         'RUNNING'," +
                 "prevNode:      null," +
                 "nextNode:      null," +
                 "lastUpdatedBy: 'master-1'" +
@@ -87,7 +87,7 @@ public class RuntimeTest {
         verifyStorageStates("{" +
                 "storage-1:{" +
                     "role:          ['Head']," +
-                    "state:         'RECOVERING'," +
+                    "state:         'RUNNING'," +
                     "prevNode:      null," +
                     "nextNode:      'storage-2'," +
                     "lastUpdatedBy: 'master-1'" +
@@ -109,7 +109,7 @@ public class RuntimeTest {
         verifyStorageStates("{" +
                 "storage-1:{" +
                     "role:          ['Head']," +
-                    "state:         'RECOVERING'," +
+                    "state:         'RUNNING'," +
                     "prevNode:      null," +
                     "nextNode:      'storage-2'," +
                     "lastUpdatedBy: 'master-1'" +

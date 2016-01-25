@@ -34,10 +34,10 @@ import java.util.Map;
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
 public class MasterNode extends AbstractNode<MasterNodeContext> {
-    private Map<String, String> nodeStates = new HashMap<>();
+    private final Map<String, String> nodeStates = new HashMap<>();
     private StateAwareChain chain;
 
-    protected static class NodeInfo extends HashMap<String, Object> {
+    public static class NodeInfo extends HashMap<String, Object> {
     }
 
     public MasterNode(final String nodeId) {
@@ -62,12 +62,14 @@ public class MasterNode extends AbstractNode<MasterNodeContext> {
 
                             builder
                                 .setType(EnumSet.allOf(ControlMessage.Type.class))
-                                .setRoles(EnumSet.of(ControlMessage.Role.Head, ControlMessage.Role.Tail));
+                                .setRoles(EnumSet.of(ControlMessage.Role.Head, ControlMessage.Role.Tail))
+                                .setState(StorageNode.StorageState.RUNNING.name());
 
+                        } else {
+                            builder.setState(StorageNode.StorageState.RECOVERING.name());
                         }
 
                         final ControlMessage msg = builder
-                                .setState(StorageNode.StorageState.RECOVERING.name())
                                 .build();
 
                         context().manageNode(msg, node.getId());
@@ -192,6 +194,9 @@ public class MasterNode extends AbstractNode<MasterNodeContext> {
                 case RECOVERING:
                     break;
 
+                case RUNNING:
+                    break;
+
                 default:
                     throw new IllegalStateException(
                             String.format("Node '%s' has unhandled newState '%s'", nodeId, newState)
@@ -200,7 +205,7 @@ public class MasterNode extends AbstractNode<MasterNodeContext> {
         }
     }
 
-    public Chain chain() {
+    public Chain<NodeInfo> chain() {
         return chain;
     }
 }
