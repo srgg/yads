@@ -19,6 +19,7 @@
  */
 package com.github.srgg.yads.impl;
 
+import com.github.srgg.yads.api.messages.Message;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 import com.github.srgg.yads.impl.util.TaggedLogger;
 import org.slf4j.Logger;
@@ -63,7 +64,7 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
         return logger;
     }
 
-    protected CommunicationContext communicationContext() {
+    private CommunicationContext communicationContext() {
         return messageContext;
     }
 
@@ -74,6 +75,16 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
     @Override
     public String getId() {
         return node.getId();
+    }
+
+    protected final <M extends Message> M sendMessage(final String recipient,
+                                     final Message.MessageBuilder<M, ?> builder) throws Exception {
+
+        final Object b = builder.setSender(getId());
+        final M m = ((Message.MessageBuilder<M, ?>) b).build();
+
+        communicationContext().send(recipient, m);
+        return m;
     }
 
     private void start() {
@@ -89,13 +100,11 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
         executor.scheduleAtFixedRate(() -> {
             try {
                 final String status = state.get();
-                final NodeStatus msg = new NodeStatus.Builder()
-                        .setSender(getId())
+                final NodeStatus.Builder b = new NodeStatus.Builder()
                         .setStatus(status)
-                        .setNodeType(node.getNodeType())
-                        .build();
+                        .setNodeType(node.getNodeType());
 
-                messageContext.send(CommunicationContext.LEADER_NODE, msg);
+                sendMessage(CommunicationContext.LEADER_NODE, b);
             } catch (Exception e) {
                 logger.error("Can't send status", e);
             }

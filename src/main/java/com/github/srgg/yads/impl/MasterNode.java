@@ -69,36 +69,33 @@ public class MasterNode extends AbstractNode<MasterNodeContext> {
                             builder.setState(StorageNode.StorageState.RECOVERING.name());
                         }
 
-                        final ControlMessage msg = builder
-                                .build();
-
-                        context().manageNode(msg, node.getId());
+                        context().manageNode(builder, node.getId());
 
                         // -- reconfigure adjacent nodes
                         if (prevNode != null) {
 
                             assert node.equals(prevNode.nextNode());
 
-                            final ControlMessage msgPrev = mkSetChainBuilder(
+                            final ControlMessage.Builder bPrev = mkSetChainBuilder(
                                     prevNode,
                                     prevNode.prevNode(),
                                     prevNode.nextNode()
-                                ).build();
+                                );
 
-                            context().manageNode(msgPrev, prevNode.getId());
+                            context().manageNode(bPrev, prevNode.getId());
                         }
 
                         if (nextNode != null) {
 
                             assert node.equals(nextNode.prevNode());
 
-                            final ControlMessage msgNext = mkSetChainBuilder(
+                            final ControlMessage.Builder bNext = mkSetChainBuilder(
                                     nextNode,
                                     nextNode.prevNode(),
                                     nextNode.nextNode()
-                                ).build();
+                                );
 
-                            context().manageNode(msgNext, nextNode.getId());
+                            context().manageNode(bNext, nextNode.getId());
                         }
 
                         logger().info("[NODE CHAINED] '{}' was added to the chain", node);

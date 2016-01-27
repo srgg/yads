@@ -39,12 +39,12 @@ public class MasterNodeExecutionContext extends AbstractNodeRuntime<MasterNode> 
     }
 
     @Override
-    public void manageNode(final ControlMessage message, final Iterable<String> nodeIds) throws Exception {
+    public void manageNode(final ControlMessage.Builder builder, final Iterable<String> nodeIds) throws Exception {
         for (String id: nodeIds) {
-            logger().info(MessageUtils.dumpMessage(message,
-                    "[CTRL:%s -> %s]  '%s'...", message.getSender(), id, message.getId().toString())
+            final ControlMessage m = sendMessage(id, builder);
+            logger().info(MessageUtils.dumpMessage(m,
+                    "[CTRL:%s -> %s]  '%s'...", m.getSender(), id, m.getId().toString())
             );
-            communicationContext().send(id, message);
         }
     }
 

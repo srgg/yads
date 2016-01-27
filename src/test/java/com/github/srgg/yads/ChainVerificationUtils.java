@@ -19,6 +19,9 @@
  */
 package com.github.srgg.yads;
 
+import com.github.srgg.yads.api.messages.Message;
+import net.javacrumbs.jsonunit.ConfigurableJsonMatcher;
+import net.javacrumbs.jsonunit.core.Option;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import com.github.srgg.yads.impl.api.Chain;
@@ -27,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static net.javacrumbs.jsonunit.JsonMatchers.jsonEquals;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.argThat;
 
@@ -101,5 +105,44 @@ public class ChainVerificationUtils {
     public static <T> void verifyChain(Chain<T> chain, String expectedChain) {
         final List<String>  nodeSequence = parseExpectedChainTemplate(expectedChain);
         doVerifyChain(chain, nodeSequence);
+    }
+
+    public static class MessageBuilderMatcher<M extends Message.MessageBuilder> extends BaseMatcher<M> {
+//        private final static ObjectMapper mapper = new ObjectMapper();
+//        private final static TypeReference<HashMap<String,?>> MAP_TYPE_REFERENCE
+//                = new TypeReference<HashMap<String, ?>>() {};
+
+        private final Object ethalon;
+        private final ConfigurableJsonMatcher matcher;
+
+        public MessageBuilderMatcher(Object ethalon) {
+            this.ethalon = ethalon;
+
+            matcher = jsonEquals(ethalon)
+                    .when(Option.IGNORING_EXTRA_FIELDS);
+        }
+
+        @Override
+        public boolean matches(Object item) {
+            if (item == null && ethalon == null) {
+                return true;
+            }
+
+            if (item != null && Message.MessageBuilder.class.isInstance(item)) {
+                final Object m = ((Message.MessageBuilder) item).buildPartial();
+                //final HashMap<String,?> actual =  mapper.convertValue(m, MAP_TYPE_REFERENCE);
+                return matcher.matches(m);
+            }
+            return false;
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            matcher.describeTo(description);
+        }
+
+        public static <M extends Message.MessageBuilder> MessageBuilderMatcher<M> create(Object values) {
+            return new MessageBuilderMatcher<M>(values);
+        }
     }
 }

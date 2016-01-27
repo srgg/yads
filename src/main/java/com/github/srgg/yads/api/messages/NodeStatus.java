@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import org.inferred.freebuilder.FreeBuilder;
 import com.github.srgg.yads.api.message.Messages;
+import org.inferred.freebuilder.shaded.com.google.common.annotations.VisibleForTesting;
 
 import java.util.UUID;
 
@@ -39,7 +40,7 @@ public interface NodeStatus extends Message {
     @JsonProperty("status")
     String getStatus();
 
-    class Builder extends NodeStatus_Builder {
+    class Builder extends NodeStatus_Builder implements MessageBuilder<NodeStatus, Builder> {
         public Builder() {
             setId(UUID.randomUUID());
         }
@@ -48,8 +49,15 @@ public interface NodeStatus extends Message {
             setId(id);
         }
 
+        @Override
         public NodeStatus build() {
             return super.build();
+        }
+
+        @VisibleForTesting
+        @Override
+        public String toString() {
+            return buildPartial().toString();
         }
     }
 }

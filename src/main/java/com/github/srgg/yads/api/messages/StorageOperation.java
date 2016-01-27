@@ -20,6 +20,7 @@
 package com.github.srgg.yads.api.messages;
 
 import org.inferred.freebuilder.FreeBuilder;
+import org.inferred.freebuilder.shaded.com.google.common.annotations.VisibleForTesting;
 
 import javax.annotation.Nullable;
 
@@ -39,6 +40,12 @@ public interface StorageOperation extends Message {
     @Nullable
     Object getObject();
 
-    class Builder extends StorageOperation_Builder {
+    class Builder extends StorageOperation_Builder implements MessageBuilder<StorageOperation, StorageOperation_Builder> {
+
+        @VisibleForTesting
+        @Override
+        public String toString() {
+            return buildPartial().toString();
+        }
     }
 }

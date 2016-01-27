@@ -21,7 +21,6 @@ package com.github.srgg.yads;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import net.javacrumbs.jsonunit.core.Option;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
@@ -41,7 +40,6 @@ import java.util.*;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
-import static net.javacrumbs.jsonunit.JsonMatchers.*;
 import static org.mockito.Mockito.*;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -155,7 +153,8 @@ public class MasterNodeTest {
             }
 
             verify(nodeContext, after(100)).manageNode(
-                    (ControlMessage) argThat(jsonEquals(values).when(Option.IGNORING_EXTRA_FIELDS)),
+                    //(ControlMessage) argThat(jsonEquals(values).when(Option.IGNORING_EXTRA_FIELDS)),
+                    (ControlMessage.Builder) argThat(ChainVerificationUtils.MessageBuilderMatcher.create(values)),
                     eq(nodeId));
         } catch (Exception e) {
             throw new RuntimeException(e);
