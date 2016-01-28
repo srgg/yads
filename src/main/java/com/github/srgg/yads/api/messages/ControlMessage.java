@@ -74,7 +74,7 @@ public interface ControlMessage extends Message {
             setId(id);
         }
 
-        private void smartPreBuild() {
+        public void smartPreBuild() {
             final LinkedList<Type> types = new LinkedList<>();
             LinkedList<Role> roles = null;
 

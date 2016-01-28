@@ -32,7 +32,14 @@ public interface Message extends Identifiable<UUID> {
     @JsonProperty("sender")
     String getSender();
 
+    @JsonProperty("id")
+    @Override
+    UUID getId();
+
     interface MessageBuilder<M extends Message, B> {
+        B setId(UUID id);
+        UUID getId();
+
         B setSender(String id);
 
         M build();

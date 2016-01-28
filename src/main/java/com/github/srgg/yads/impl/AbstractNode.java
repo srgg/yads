@@ -36,7 +36,10 @@ import java.util.concurrent.atomic.AtomicReference;
 public abstract class AbstractNode<C extends NodeContext> implements ActivationAware, Configurable<C> {
     private final Logger logger;
     private final String nodeId;
+
+    // TODO: get rid of it and incapsulate in NodeContext
     private AtomicReference<String> state = new AtomicReference<>(State.NEW.name());
+
     private final Map<String, Set<String>> allowedTransitions;
     private C context;
     private final Messages.NodeType nodeType;
@@ -113,12 +116,11 @@ public abstract class AbstractNode<C extends NodeContext> implements ActivationA
     }
 
     protected void onStateChanged(final String old, final String current) {
+        logger().debug("[STATE] changed '{}' -> '{}'", old, current);
         final C ctx = context();
         if (ctx != null) {
             context().stateChanged(current);
         }
-
-        logger().debug("[STATE] changed '{}' -> '{}'", old, current);
     }
 
     /**

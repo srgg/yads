@@ -191,6 +191,9 @@ public class MasterNode extends AbstractNode<MasterNodeContext> {
                 case RECOVERING:
                     break;
 
+                case RECOVERED:
+                    break;
+
                 case RUNNING:
                     break;
 

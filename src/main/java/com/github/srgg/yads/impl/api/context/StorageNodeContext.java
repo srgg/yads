@@ -19,11 +19,18 @@
  */
 package com.github.srgg.yads.impl.api.context;
 
+import com.github.srgg.yads.api.messages.RecoveryRequest;
+import com.github.srgg.yads.api.messages.RecoveryResponse;
 import com.github.srgg.yads.api.messages.StorageOperation;
+import org.javatuples.Pair;
+
+import java.util.Map;
 
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
 public interface StorageNodeContext extends NodeContext {
-    <T extends StorageOperation> OperationExecutionContext<T> contextFor(T operation);
+    OperationContext<StorageOperation, Object> contextFor(StorageOperation operation);
+    OperationContext<RecoveryRequest, Pair<Boolean, Map<String,Object>>> contextFor(RecoveryRequest operation);
+    OperationContext<RecoveryResponse, Void> contextFor(RecoveryResponse operation);
 }

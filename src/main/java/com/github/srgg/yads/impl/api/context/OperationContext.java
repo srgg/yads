@@ -22,8 +22,8 @@ package com.github.srgg.yads.impl.api.context;
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
-public interface OperationExecutionContext<T> {
+public interface OperationContext<T, R> {
     T operation();
-    void ackOperation(Object result);
+    void ackOperation(R result);
     void failureOperation(Exception ex);
 }

@@ -29,10 +29,19 @@ import java.util.Map;
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
 public class InMemoryStorage implements IStorage {
-    private Map<Object, Object> data = new HashMap<>();
+    private HashMap<String, Object> data = new HashMap<>();
+
+    public synchronized Map<String,Object> snapshot() {
+        return (Map<String, Object>) data.clone();
+    }
+
+    public synchronized void applySnapshot(Map<String, Object> snapshot) {
+        data.clear();
+        data.putAll(snapshot);
+    }
 
     @Override
-    public Object process(final StorageOperation storageOperation) throws Exception {
+    public synchronized Object process(final StorageOperation storageOperation) throws Exception {
         switch (storageOperation.getType()) {
             case Get:
                 return data.get(storageOperation.getKey());

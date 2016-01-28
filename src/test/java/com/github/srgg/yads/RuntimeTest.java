@@ -94,10 +94,10 @@ public class RuntimeTest {
                 "}," +
                 "storage-2:{" +
                     "role:          ['Tail']," +
-                    "state:         'RECOVERING'," +
+                    "state:         'RECOVERED'," +
                     "prevNode:      'storage-1'," +
                     "nextNode:      null," +
-                    "lastUpdatedBy: 'master-1'" +
+                    "lastUpdatedBy: 'localoop'" +
                 "}" +
             "}"
         );
@@ -105,7 +105,7 @@ public class RuntimeTest {
 
         rt.createStorageNode("storage-3");
         rt.waitForCompleteChain();
-        Thread.sleep(100);
+        Thread.sleep(300);
         verifyStorageStates("{" +
                 "storage-1:{" +
                     "role:          ['Head']," +
@@ -116,7 +116,7 @@ public class RuntimeTest {
                 "}," +
                 "storage-2:{" +
                     "role:          ['Middle']," +
-                    "state:         'RECOVERING'," +
+                    "state:         'RECOVERED'," +
                     "prevNode:      'storage-1'," +
                     "nextNode:      'storage-3'," +
                     "lastUpdatedBy: 'master-1'" +

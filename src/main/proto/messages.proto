@@ -24,6 +24,8 @@ enum MessageTypes {
     NodeStatus = 0;
     ControlMessage = 1;
     StorageOperation = 2;
+    RecoveryRequest = 3;
+    RecoveryResponse = 4;
 }
 
 enum NodeType {

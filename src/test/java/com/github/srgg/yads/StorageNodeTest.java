@@ -35,7 +35,7 @@ import com.github.srgg.yads.api.messages.ControlMessage;
 import com.github.srgg.yads.api.messages.StorageOperation;
 import com.github.srgg.yads.impl.context.StorageExecutionContext;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
-import com.github.srgg.yads.impl.api.context.OperationExecutionContext;
+import com.github.srgg.yads.impl.api.context.OperationContext;
 import com.github.srgg.yads.impl.StorageNode;
 
 import java.util.*;
@@ -54,7 +54,7 @@ public class StorageNodeTest {
     private CommunicationContext communicationContext;
 
     @Mock
-    private OperationExecutionContext operationContext;
+    private OperationContext operationContext;
 
     @Mock
     private IStorage storage;
@@ -194,6 +194,7 @@ public class StorageNodeTest {
 
         manageNode(
             new ControlMessage.Builder()
+                    .setPrevNode("PREV-NODE")
                     .setState(StorageNode.StorageState.RECOVERING.name())
         );
 
