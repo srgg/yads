@@ -27,6 +27,7 @@ import com.github.srgg.yads.impl.api.context.OperationContext;
 import com.github.srgg.yads.impl.api.context.StorageNodeContext;
 import com.github.srgg.yads.impl.util.MessageUtils;
 import com.github.srgg.yads.api.message.Messages;
+import com.google.common.annotations.VisibleForTesting;
 import org.javatuples.Pair;
 
 import java.util.*;
@@ -38,15 +39,15 @@ import static com.google.common.base.Preconditions.checkState;
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
 public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> implements StorageNodeContext {
-    private final static UUID localId = UUID.fromString("00000000-0000-0000-0000-000000000000");
-    private AtomicReference<NodeState> nodeState = new AtomicReference<>();
+    private static final UUID LOCAL_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    private final AtomicReference<NodeState> nodeState = new AtomicReference<>();
 
     public StorageExecutionContext(final CommunicationContext messageContext, final StorageNode node) {
         super(messageContext, node);
     }
 
 
-    private static class GenericOperationContext<T extends Message,R> implements OperationContext<T,R> {
+    private static class GenericOperationContext<T extends Message, R> implements OperationContext<T, R> {
         private final T operation;
         private final StorageExecutionContext ctx;
         private final UnsafeAcknowledge<T, R> acknowledgeOp;
@@ -56,10 +57,11 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
             void acknowledge(StorageExecutionContext ctx, T operation, R result) throws Exception;
         }
 
-        protected GenericOperationContext(StorageExecutionContext ctx, T operation, UnsafeAcknowledge<T, R> acknowledgeOp) {
-            this.operation = operation;
-            this.ctx = ctx;
-            this.acknowledgeOp = acknowledgeOp;
+        protected GenericOperationContext(final StorageExecutionContext context, final T op,
+                                          final UnsafeAcknowledge<T, R> doAck) {
+            this.operation = op;
+            this.ctx = context;
+            this.acknowledgeOp = doAck;
         }
 
         @Override
@@ -68,24 +70,24 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
         }
 
         @Override
-        public final void ackOperation(R result) {
+        public final void ackOperation(final R result) {
             try {
-                acknowledgeOp.acknowledge(ctx,operation, result);
+                acknowledgeOp.acknowledge(ctx, operation, result);
             } catch (Exception ex) {
                 ctx.logger().error("Operation acknowledgement was failed", ex);
             }
         }
 
         @Override
-        public void failureOperation(Exception ex) {
+        public void failureOperation(final Exception ex) {
             ctx.logger().error(MessageUtils.dumpMessage(operation,
                     "[ACK-FAILED:%s]  '%s'...", operation.getSender(), operation.getId().toString()), ex);
         }
     }
 
-    private <T extends Message,R> OperationContext<T,R> createOperationContext(final T operation,
-                                                               GenericOperationContext.UnsafeAcknowledge<T,R> anckOP) {
-        return new GenericOperationContext<T,R>(this, operation, anckOP);
+    private <T extends Message, R> OperationContext<T, R> createOperationContext(final T operation,
+                                                final GenericOperationContext.UnsafeAcknowledge<T, R> anckOP) {
+        return new GenericOperationContext<>(this, operation, anckOP);
     }
 
     // TODO: Requires to have default implementation
@@ -95,24 +97,22 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
     }
 
     @Override
-    public OperationContext<RecoveryRequest, Pair<Boolean, Map<String,Object>>> contextFor(final RecoveryRequest operation) {
-        return createOperationContext(operation, (ctx, op, r) -> {
-            ctx.sendMessage(operation.getSender(),
+    public OperationContext<RecoveryRequest, Pair<Boolean, Map<String, Object>>> contextFor(final RecoveryRequest operation) {
+        return createOperationContext(operation, (ctx, op, r) -> ctx.sendMessage(operation.getSender(),
                     new RecoveryResponse.Builder()
                             .setLast(Boolean.TRUE.equals(r.getValue0()))
                             .putAllSnapshot(r.getValue1())
-            );
-        });
+        ));
     }
 
     @Override
-    public OperationContext<RecoveryResponse, Void> contextFor(RecoveryResponse operation) {
+    public OperationContext<RecoveryResponse, Void> contextFor(final RecoveryResponse operation) {
         return createOperationContext(operation, (ctx, op, r) -> {
             if (op.isLast()) {
                 logger().info(MessageUtils.dumpMessage(op,
                         "[RECOVERY-COMPLETE:%s]  '%s'...", op.getSender(), op.getId().toString()));
 
-                doNodeStateChange("RECOVERED");
+                doNodeStateChange(StorageNode.StorageState.RECOVERED);
             }
         });
     }
@@ -144,8 +144,8 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
 
                     node().onRecoveryRequest(rrm);
                 } else {
-                    logger().warn("[RECOVERY-REQ:{}]  WILL BE IGNORED due to the inappropriate node state ('{}')." +
-                            "\nTo handle Recovery requests node should be in 'RUNNING' state.",
+                    logger().warn("[RECOVERY-REQ:{}]  WILL BE IGNORED due to the inappropriate node state ('{}')."
+                            + "\nTo handle Recovery requests node should be in 'RUNNING' state.",
                             message.getSender(), state);
                 }
                 break;
@@ -155,8 +155,8 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
                 if (StorageNode.StorageState.RECOVERING.equals(state)) {
                     node().onRecoveryResponse(rrspm);
                 } else {
-                    logger().warn("[RECOVERY-RESP:{}]  WILL BE IGNORED due to the inappropriate node state ('{}')." +
-                                    "\nTo handle Recovery response node should be in 'RECOVERING' state.",
+                    logger().warn("[RECOVERY-RESP:{}]  WILL BE IGNORED due to the inappropriate node state ('{}')."
+                            + "\nTo handle Recovery response node should be in 'RECOVERING' state.",
                             message.getSender(), state);
                 }
                 break;
@@ -315,17 +315,19 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
             );
         } catch (Exception e) {
             logger().error(String.format("Failed to start recovery from '%s'", recoverySource), e);
-            doNodeStateChange("FAILED");
+            doNodeStateChange(StorageNode.StorageState.FAILED);
         }
     }
 
-    private void doNodeStateChange(String state) {
+    @VisibleForTesting
+    public void doNodeStateChange(final StorageNode.StorageState state) {
         final ControlMessage cm =  new ControlMessage.Builder()
                 .setState(state)
-                .setId(localId)
+                .setId(LOCAL_ID)
                 .setSender("localoop")
                 .build();
 
         updateNodeState(cm);
+        notifyAboutNodeStatus();
     }
 }

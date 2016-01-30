@@ -59,7 +59,7 @@ public class RuntimeTest {
         Thread.sleep(200);
     }
 
-    @Test//(timeout = 10000)
+    @Test(timeout = 10000)
     public void checkGentleChainCreation() throws Exception {
 
         rt.createMasterNode("master-1");

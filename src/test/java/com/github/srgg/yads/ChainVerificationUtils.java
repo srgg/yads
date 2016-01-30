@@ -107,16 +107,43 @@ public class ChainVerificationUtils {
         doVerifyChain(chain, nodeSequence);
     }
 
-    public static class MessageBuilderMatcher<M extends Message.MessageBuilder> extends BaseMatcher<M> {
-//        private final static ObjectMapper mapper = new ObjectMapper();
-//        private final static TypeReference<HashMap<String,?>> MAP_TYPE_REFERENCE
-//                = new TypeReference<HashMap<String, ?>>() {};
-
+    public static class MessageMatcher<M extends Message> extends BaseMatcher<M> {
+        private final Class<M> clazz;
         private final Object ethalon;
         private final ConfigurableJsonMatcher matcher;
 
-        public MessageBuilderMatcher(Object ethalon) {
+
+        protected MessageMatcher(Class<M> messageClass, Object ethalon) {
+            this.clazz = messageClass;
             this.ethalon = ethalon;
+            matcher = jsonEquals(ethalon)
+                    .when(Option.IGNORING_EXTRA_FIELDS);
+        }
+
+        @Override
+        public boolean matches(Object item) {
+            return item == null && ethalon == null
+                    || item != null && clazz.isInstance(item) && matcher.matches(item);
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            matcher.describeTo(description);
+        }
+
+        public static <M extends Message> MessageMatcher<M> create(Class<M> messageClass, Object expected) {
+            return new MessageMatcher<>(messageClass, expected);
+        }
+    }
+
+    public static class MessageBuilderMatcher<M extends Message.MessageBuilder> extends BaseMatcher<M> {
+        private final Class<M> clazz;
+        private final Object ethalon;
+        private final ConfigurableJsonMatcher matcher;
+
+        protected MessageBuilderMatcher(Class<M> builderClass, Object ethalon) {
+            this.ethalon = ethalon;
+            this.clazz = builderClass;
 
             matcher = jsonEquals(ethalon)
                     .when(Option.IGNORING_EXTRA_FIELDS);
@@ -130,7 +157,7 @@ public class ChainVerificationUtils {
 
             if (item != null && Message.MessageBuilder.class.isInstance(item)) {
                 final Object m = ((Message.MessageBuilder) item).buildPartial();
-                //final HashMap<String,?> actual =  mapper.convertValue(m, MAP_TYPE_REFERENCE);
+
                 return matcher.matches(m);
             }
             return false;
@@ -141,8 +168,8 @@ public class ChainVerificationUtils {
             matcher.describeTo(description);
         }
 
-        public static <M extends Message.MessageBuilder> MessageBuilderMatcher<M> create(Object values) {
-            return new MessageBuilderMatcher<M>(values);
+        public static <M extends Message.MessageBuilder> MessageBuilderMatcher<M> create(Class<M> builderClass, Object expected) {
+            return new MessageBuilderMatcher<>(builderClass, expected);
         }
     }
 }

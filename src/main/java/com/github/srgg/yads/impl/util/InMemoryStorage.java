@@ -31,11 +31,12 @@ import java.util.Map;
 public class InMemoryStorage implements IStorage {
     private HashMap<String, Object> data = new HashMap<>();
 
-    public synchronized Map<String,Object> snapshot() {
+    @SuppressWarnings("unchecked")
+    public synchronized Map<String, Object> snapshot() {
         return (Map<String, Object>) data.clone();
     }
 
-    public synchronized void applySnapshot(Map<String, Object> snapshot) {
+    public synchronized void applySnapshot(final Map<String, Object> snapshot) {
         data.clear();
         data.putAll(snapshot);
     }

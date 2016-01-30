@@ -29,6 +29,7 @@ import com.github.srgg.yads.impl.api.context.NodeContext;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -53,6 +54,8 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
     private final N node;
     private AtomicReference<String> state = new AtomicReference<>();
 
+    private int statusNotificationPeriod = 10;
+    private ScheduledFuture stateNotifyFuture;
     private ScheduledExecutorService executor;
 
     public AbstractNodeRuntime(final CommunicationContext mc, final N n) {
@@ -81,6 +84,8 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
                                      final Message.MessageBuilder<M, ?> builder) throws Exception {
 
         final Object b = builder.setSender(getId());
+
+        @SuppressWarnings("unchecked")
         final M m = ((Message.MessageBuilder<M, ?>) b).build();
 
         communicationContext().send(recipient, m);
@@ -96,19 +101,7 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
 
         doStart();
 
-        // schedule status notifications
-        executor.scheduleAtFixedRate(() -> {
-            try {
-                final String status = state.get();
-                final NodeStatus.Builder b = new NodeStatus.Builder()
-                        .setStatus(status)
-                        .setNodeType(node.getNodeType());
-
-                sendMessage(CommunicationContext.LEADER_NODE, b);
-            } catch (Exception e) {
-                logger.error("Can't send status", e);
-            }
-        }, 2, 10, TimeUnit.SECONDS);
+        rescheduleStatusNotification(2, statusNotificationPeriod);
 
         logger().info("has been STARTED");
     }
@@ -125,6 +118,29 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
     }
 
     protected void doStop() {
+    }
+
+    protected void notifyAboutNodeStatus() {
+        rescheduleStatusNotification(0, statusNotificationPeriod);
+    }
+
+    private void rescheduleStatusNotification(final long initialDelay, final long period) {
+        if (stateNotifyFuture != null) {
+            stateNotifyFuture.cancel(true);
+        }
+
+        stateNotifyFuture = executor.scheduleAtFixedRate(() -> {
+            try {
+                final String status = state.get();
+                final NodeStatus.Builder b = new NodeStatus.Builder()
+                        .setStatus(status)
+                        .setNodeType(node.getNodeType());
+
+                sendMessage(CommunicationContext.LEADER_NODE, b);
+            } catch (Exception e) {
+                logger.error("Can't send status", e);
+            }
+        }, initialDelay, period, TimeUnit.SECONDS);
     }
 
     @Override

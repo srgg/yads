@@ -31,6 +31,6 @@ import java.util.Map;
  */
 public interface StorageNodeContext extends NodeContext {
     OperationContext<StorageOperation, Object> contextFor(StorageOperation operation);
-    OperationContext<RecoveryRequest, Pair<Boolean, Map<String,Object>>> contextFor(RecoveryRequest operation);
+    OperationContext<RecoveryRequest, Pair<Boolean, Map<String, Object>>> contextFor(RecoveryRequest operation);
     OperationContext<RecoveryResponse, Void> contextFor(RecoveryResponse operation);
 }

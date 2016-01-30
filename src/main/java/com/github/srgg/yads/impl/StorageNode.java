@@ -19,7 +19,6 @@
  */
 package com.github.srgg.yads.impl;
 
-import com.github.srgg.yads.api.ActivationAware;
 import com.github.srgg.yads.api.IStorage;
 import com.github.srgg.yads.api.messages.RecoveryRequest;
 import com.github.srgg.yads.api.messages.RecoveryResponse;
@@ -31,7 +30,6 @@ import com.github.srgg.yads.impl.api.context.StorageNodeContext;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicReference;
 
 import com.github.srgg.yads.api.messages.StorageOperation;
 import com.github.srgg.yads.impl.util.InMemoryStorage;
@@ -89,7 +87,7 @@ public class StorageNode extends AbstractNode<StorageNodeContext> {
         checkState(!processingCycle.isRunning(), "To apply recovery chunk the processing cycle shouldn't be running.");
         final OperationContext<?, ?> ctx = this.context().contextFor(response);
 
-        if (!(storage instanceof InMemoryStorage) ) {
+        if (!(storage instanceof InMemoryStorage)) {
             final Exception ex = new IllegalStateException("Recovery is only available for InMemoryStorage");
             ex.setStackTrace(Thread.currentThread().getStackTrace());
             ctx.failureOperation(ex);
@@ -102,10 +100,10 @@ public class StorageNode extends AbstractNode<StorageNodeContext> {
 
     @Subscribe
     public void onRecoveryRequest(final RecoveryRequest request) throws Exception {
-        final OperationContext<RecoveryRequest, Pair<Boolean, Map<String,Object>>>
+        final OperationContext<RecoveryRequest, Pair<Boolean, Map<String, Object>>>
                 ctx = this.context().contextFor(request);
 
-        if (!(storage instanceof InMemoryStorage) ) {
+        if (!(storage instanceof InMemoryStorage)) {
             final Exception ex = new IllegalStateException("Recovery is only available for InMemoryStorage");
             ex.setStackTrace(Thread.currentThread().getStackTrace());
             ctx.failureOperation(ex);

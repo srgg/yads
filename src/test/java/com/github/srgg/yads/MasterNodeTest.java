@@ -153,8 +153,7 @@ public class MasterNodeTest {
             }
 
             verify(nodeContext, after(100)).manageNode(
-                    //(ControlMessage) argThat(jsonEquals(values).when(Option.IGNORING_EXTRA_FIELDS)),
-                    (ControlMessage.Builder) argThat(ChainVerificationUtils.MessageBuilderMatcher.create(values)),
+                    argThat(ChainVerificationUtils.MessageBuilderMatcher.create(ControlMessage.Builder.class, values)),
                     eq(nodeId));
         } catch (Exception e) {
             throw new RuntimeException(e);

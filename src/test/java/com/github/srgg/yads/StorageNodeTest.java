@@ -19,6 +19,7 @@
  */
 package com.github.srgg.yads;
 
+import com.github.srgg.yads.api.messages.NodeStatus;
 import org.junit.Before;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
@@ -80,6 +81,8 @@ public class StorageNodeTest {
 
     @Before
     public void setup() throws Exception {
+        JsonUnitInitializer.initialize();
+
         // TODO: figure out how initialization can be refactored with @InjectMocks
         final StorageNode n = new StorageNode("node1", storage);
         node = spy(n);
@@ -143,7 +146,7 @@ public class StorageNodeTest {
 
         manageNode(
             new ControlMessage.Builder()
-                .setState(StorageNode.StorageState.RUNNING.name())
+                .setState(StorageNode.StorageState.RUNNING)
         );
 
         assertEquals("RUNNING", node.getState());
@@ -157,7 +160,7 @@ public class StorageNodeTest {
         // -- generate list of "inappropriate" states
         final List<String> states = new LinkedList<>();
         final EnumSet<StorageNode.StorageState> allowedStates = EnumSet.of(StorageNode.StorageState.RECOVERING,
-                StorageNode.StorageState.RUNNING);
+                StorageNode.StorageState.RECOVERED, StorageNode.StorageState.RUNNING);
 
         for (StorageNode.StorageState s : StorageNode.StorageState.values()) {
             if (!allowedStates.contains(s)) {
@@ -188,6 +191,26 @@ public class StorageNodeTest {
     }
 
     @Test
+    public void sendNodeStateImmediatelyInCaseOfLocalChange() throws Exception {
+        verifyZeroInteractions(storage);
+        startNodeAndVerify();
+        nodeContext.doNodeStateChange(StorageNode.StorageState.FAILED);
+
+        /**
+         * If due to whatever reason node state was changed locally,
+         * the new state should be propagated to the leader immediately
+         */
+        verify(communicationContext, after(100)).send(
+                eq(CommunicationContext.LEADER_NODE),
+                argThat( ChainVerificationUtils.MessageMatcher.create(NodeStatus.class,
+                        "{sender: 'node1',"
+                            + "type: 'Storage',"
+                            + "status: 'FAILED'"
+                        + "}"))
+            );
+    }
+
+    @Test
     public void checkBehavior_of_StorageOperationProcessingDuringRecovery() throws Exception {
         verifyZeroInteractions(storage);
         startNodeAndVerify();
@@ -195,7 +218,7 @@ public class StorageNodeTest {
         manageNode(
             new ControlMessage.Builder()
                     .setPrevNode("PREV-NODE")
-                    .setState(StorageNode.StorageState.RECOVERING.name())
+                    .setState(StorageNode.StorageState.RECOVERING)
         );
 
         for (StorageOperation op : allOperations) {
@@ -206,10 +229,15 @@ public class StorageNodeTest {
         verify(storage, after(2000).never()).process(any());
         verifyZeroInteractions(storage);
 
+        manageNode(
+                new ControlMessage.Builder()
+                        .setState(StorageNode.StorageState.RECOVERED)
+        );
+
         // should process all previously queued operations
         manageNode(
             new ControlMessage.Builder()
-                    .setState(StorageNode.StorageState.RUNNING.name())
+                    .setState(StorageNode.StorageState.RUNNING)
         );
 
         // all the enqueued operation should be processed

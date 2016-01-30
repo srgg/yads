@@ -74,6 +74,10 @@ public interface ControlMessage extends Message {
             setId(id);
         }
 
+        public <E extends Enum<E>> Builder setState(final E state) {
+            return setState(state.name());
+        }
+
         public void smartPreBuild() {
             final LinkedList<Type> types = new LinkedList<>();
             LinkedList<Role> roles = null;
