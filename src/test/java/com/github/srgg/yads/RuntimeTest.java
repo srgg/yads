@@ -94,10 +94,10 @@ public class RuntimeTest {
                 "}," +
                 "storage-2:{" +
                     "role:          ['Tail']," +
-                    "state:         'RECOVERED'," +
+                    "state:         'RUNNING'," +
                     "prevNode:      'storage-1'," +
                     "nextNode:      null," +
-                    "lastUpdatedBy: 'localoop'" +
+                    "lastUpdatedBy: 'master-1'" +
                 "}" +
             "}"
         );
@@ -116,14 +116,14 @@ public class RuntimeTest {
                 "}," +
                 "storage-2:{" +
                     "role:          ['Middle']," +
-                    "state:         'RECOVERED'," +
+                    "state:         'RUNNING'," +
                     "prevNode:      'storage-1'," +
                     "nextNode:      'storage-3'," +
                     "lastUpdatedBy: 'master-1'" +
                 "}," +
                 "storage-3: {" +
                     "role:          ['Tail']," +
-                    "state:         'RECOVERING'," +
+                    "state:         'RUNNING'," +
                     "prevNode:      'storage-2'," +
                     "nextNode:      null," +
                     "lastUpdatedBy: 'master-1'" +

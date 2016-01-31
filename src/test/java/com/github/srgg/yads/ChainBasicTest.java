@@ -46,12 +46,12 @@ public class ChainBasicTest {
 
     public static class TestChain extends GenericChain<Object> {
         public TestChain addNodeT(String nodeId) throws Exception {
-            super.addNode(nodeId, null);
+            super.addNode(nodeId, null, null);
             return this;
         }
 
         public TestChain removeNodeT(String nodeId) throws Exception {
-            super.removeNode(nodeId);
+            super.removeNode(nodeId, null);
             return this;
         }
     }
@@ -78,13 +78,13 @@ public class ChainBasicTest {
         verifyZeroInteractions(chainListener);
 
         chain.addNodeT("1");
-        verifyChainOperation(ActionType.Added, "(1)");
+        verifyChainOperation(ActionType.NodeAdded, "(1)");
 
         chain.addNodeT("2");
-        verifyChainOperation(ActionType.Added, "1 - (2)");
+        verifyChainOperation(ActionType.NodeAdded, "1 - (2)");
 
         chain.addNodeT("3");
-        verifyChainOperation(ActionType.Added, "1 - 2 - (3)");
+        verifyChainOperation(ActionType.NodeAdded, "1 - 2 - (3)");
 
         verifyNoMoreInteractions(chainListener);
     }
@@ -107,22 +107,22 @@ public class ChainBasicTest {
     public void removeNodesWithoutBreakingTheChain() throws Exception {
         // removing middle node
         mkChain(3).removeNodeT("2");
-        verifyChainOperation(ActionType.Removed, "1 - (2) - 3");
+        verifyChainOperation(ActionType.NodeRemoved, "1 - (2) - 3");
 
 
         // removing tail node
         mkChain(3).removeNodeT("3");
-        verifyChainOperation(ActionType.Removed, "1 - 2 - (3)");
+        verifyChainOperation(ActionType.NodeRemoved, "1 - 2 - (3)");
 
 
         // removing head node
         mkChain(3).removeNodeT("1");
-        verifyChainOperation(ActionType.Removed, "(1) - 2 - 3");
+        verifyChainOperation(ActionType.NodeRemoved, "(1) - 2 - 3");
 
 
         // removing the last node
         mkChain(1).removeNodeT("1");
-        verifyChainOperation(ActionType.Removed, "(1)");
+        verifyChainOperation(ActionType.NodeRemoved, "(1)");
 
         verifyNoMoreInteractions(chainListener);
     }
@@ -174,7 +174,7 @@ public class ChainBasicTest {
         final String nextNodeId = changedIdx.get() < (values.size() - 1) ? values.get(changedIdx.get() +1): null;
 
 
-        if (ActionType.Removed.equals(action)) {
+        if (ActionType.NodeRemoved.equals(action)) {
             values.remove(changedIdx.get());
         }
 

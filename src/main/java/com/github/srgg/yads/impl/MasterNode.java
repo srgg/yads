@@ -44,32 +44,36 @@ public class MasterNode extends AbstractNode<MasterNodeContext> {
         super(nodeId, Messages.NodeType.Master);
         chain = new StateAwareChain();
         chain.registerHandler(new GenericChain.ChainListener<NodeInfo>() {
+
+            /**
+             * @apiNote It should be the only place that sends {@link ControlMessage} to the storage nodes.
+             */
             @Override
             public void onNodeChanged(final ActionType action, final Chain.INodeInfo<NodeInfo> node,
                                       final Chain.INodeInfo<NodeInfo> prevNode,
                                       final Chain.INodeInfo<NodeInfo> nextNode) throws Exception {
                 switch (action) {
-                    case Added:
-                        final ControlMessage.Builder builder = mkSetChainBuilder(node, prevNode, nextNode);
+                    case NodeAdded:
+                        final ControlMessage.Builder builderA = mkSetChainBuilder(node, prevNode, nextNode);
 
                         /**
-                         * There is case that can't be handled by ControlMessage.Builder in a smart manner:
+                         * There is a case that can't be handled by ControlMessage.Builder in a smart manner:
                          *   first chain node
                          */
                         if (node.isHead() && node.isTail()) {
                             assert nextNode == null;
                             assert prevNode == null;
 
-                            builder
+                            builderA
                                 .setType(EnumSet.allOf(ControlMessage.Type.class))
                                 .setRoles(EnumSet.of(ControlMessage.Role.Head, ControlMessage.Role.Tail))
-                                .setState(StorageNode.StorageState.RUNNING.name());
+                                .setState(StorageNode.StorageState.RUNNING);
 
                         } else {
-                            builder.setState(StorageNode.StorageState.RECOVERING.name());
+                            builderA.setState(StorageNode.StorageState.RECOVERING);
                         }
 
-                        context().manageNode(builder, node.getId());
+                        context().manageNode(builderA, node.getId());
 
                         // -- reconfigure adjacent nodes
                         if (prevNode != null) {
@@ -101,8 +105,22 @@ public class MasterNode extends AbstractNode<MasterNodeContext> {
                         logger().info("[NODE CHAINED] '{}' was added to the chain", node);
                         break;
 
+                    case NodeStateChanged:
+                        switch (StorageNode.StorageState.valueOf(node.state())) {
+                            case RECOVERED:
+                                final ControlMessage.Builder builderC = mkSetChainBuilder(node, prevNode, nextNode)
+                                        .setState(StorageNode.StorageState.RUNNING);
+
+                                context().manageNode(builderC, node.getId());
+                                break;
+
+                            default:
+                                // do nothing
+                        }
+                        break;
+
                     default:
-                        throw new UnsupportedOperationException();
+                        throw new UnsupportedOperationException("Unhandled action '" + action + "'");
                 }
             }
 
@@ -181,20 +199,23 @@ public class MasterNode extends AbstractNode<MasterNodeContext> {
                     );
 
                 case STARTED:
-                    addNode(nodeId, null);
+                    addNode(nodeId, newState.name(), null);
                     break;
 
                 case FAILED:
-                    removeNode(nodeId);
+                    removeNode(nodeId, newState.name());
                     break;
 
                 case RECOVERING:
+                    fireNodeStateChanged(nodeId, newState.name());
                     break;
 
                 case RECOVERED:
+                    fireNodeStateChanged(nodeId, newState.name());
                     break;
 
                 case RUNNING:
+                    fireNodeStateChanged(nodeId, newState.name());
                     break;
 
                 default:
