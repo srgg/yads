@@ -21,8 +21,10 @@ package com.github.srgg.yads.impl.runtime;
 
 import com.github.srgg.yads.api.ActivationAware;
 import com.github.srgg.yads.api.Identifiable;
-import com.github.srgg.yads.api.messages.ControlMessage;
+import com.github.srgg.yads.api.message.Messages;
+import com.github.srgg.yads.api.messages.Message;
 import com.github.srgg.yads.impl.AbstractNode;
+import com.github.srgg.yads.impl.AbstractNodeRuntime;
 import com.github.srgg.yads.impl.MasterNode;
 import com.github.srgg.yads.impl.StorageNode;
 import com.github.srgg.yads.impl.api.Chain;
@@ -38,6 +40,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.function.BiConsumer;
 
 import static com.google.common.base.Preconditions.checkState;
 
@@ -46,7 +50,6 @@ import static com.google.common.base.Preconditions.checkState;
  */
 public final class LocalRuntime implements ActivationAware {
     private static LocalTransport transport = new LocalTransport();
-    private static HashMap<String, StorageExecutionContext> nodeContexts = new HashMap<>();
     private static ConcurrentHashMap<String, AbstractNode> nodes = new ConcurrentHashMap<>();
     private static HashSet<String> masterIds = new HashSet<>();
 
@@ -71,23 +74,6 @@ public final class LocalRuntime implements ActivationAware {
         return "local-rt";
     }
 
-    private static class LocalStorageExecutionContext extends StorageExecutionContext {
-        LocalStorageExecutionContext(final CommunicationContext mc, final StorageNode n) {
-            super(mc, n);
-        }
-
-        protected void doStart() {
-            super.doStart();
-            nodeContexts.put(getId(), this);
-        }
-
-        @Override
-        protected void doStop() {
-            nodeContexts.remove(getId());
-            super.doStop();
-        }
-    }
-
     public static class LocalClient implements Identifiable<String> {
         private final String clientId;
 
@@ -108,14 +94,49 @@ public final class LocalRuntime implements ActivationAware {
         }
     }
 
-    public void nodeControl(final String nodeId, final ControlMessage.Builder builder) throws Exception {
-        final ControlMessage msg = builder.build();
+    public void sendMessage(final String nodeId, final Message.MessageBuilder builder) throws Exception {
+        final Message msg = builder
+                .setSender("fake-local")
+                .build();
+
         transport.send(nodeId, msg);
+    }
+
+    public <M extends Message> M performRequest(final String nodeId, final Message.MessageBuilder builder) throws Exception {
+        final String senderId = UUID.randomUUID().toString();
+
+        final SynchronousQueue<Message>  messageQueue = new SynchronousQueue<>(false);
+
+        final AbstractNodeRuntime rt = new AbstractNodeRuntime(transport, null) {
+            @Override
+            public boolean onMessage(final String recipient, final Messages.MessageTypes type,
+                                     final Message message) throws Exception {
+                messageQueue.put(message);
+                return true;
+            }
+
+            @Override
+            public String getId() {
+                return senderId;
+            }
+        };
+
+        rt.stateChanged(State.STARTED.name());
+        try {
+            final Message msg = builder
+                    .setSender(senderId)
+                    .build();
+
+            transport.send(nodeId, msg);
+            return (M) messageQueue.take();
+        } finally {
+            rt.stateChanged(State.STOPPED.name());
+        }
     }
 
     public StorageNode createStorageNode(final String nodeId) throws Exception {
         final StorageNode node = new StorageNode(nodeId, new InMemoryStorage());
-        final StorageExecutionContext ctx = new LocalStorageExecutionContext(transport, node);
+        final StorageExecutionContext ctx = new StorageExecutionContext(transport, node);
         node.configure(ctx);
         node.start();
         nodes.put(nodeId, node);
@@ -135,8 +156,6 @@ public final class LocalRuntime implements ActivationAware {
         for (String nid: nodes.keySet()) {
             nodeShutdown(nid);
         }
-
-        assert nodeContexts.isEmpty();
         assert nodes.isEmpty();
     }
 
@@ -162,15 +181,35 @@ public final class LocalRuntime implements ActivationAware {
             if (chain.size() == expected) {
                 return chain;
             }
-            Thread.sleep(500);
+            Thread.sleep(20);
         }
     }
 
-    public Map<String, StorageExecutionContext.NodeState> getAllStorageStates() {
-        final HashMap<String, StorageExecutionContext.NodeState> r = new HashMap<>(nodes.size());
-        for (StorageExecutionContext n: nodeContexts.values()) {
-            r.put(n.getId(), n.getNodeState());
+    public List<Chain.INodeInfo<MasterNode.NodeInfo>> waitForRunningChain() throws InterruptedException {
+        final List<Chain.INodeInfo<MasterNode.NodeInfo>> r = waitForCompleteChain();
+
+        for (boolean b = false; !b;) {
+            Thread.sleep(10);
+
+            for (Chain.INodeInfo<MasterNode.NodeInfo> ni : r) {
+                b = StorageNode.StorageState.RUNNING.name().equals(ni.state());
+                if (!b) {
+                    break;
+                }
+            }
         }
+
+        return r;
+    }
+
+
+    public Map<String, StorageExecutionContext.NodeState> getAllStorageStates() {
+        final HashMap<String, StorageExecutionContext.NodeState> r = new HashMap<>();
+        transport.forEach((id, h) -> {
+            if (h instanceof StorageExecutionContext) {
+                r.put(id, ((StorageExecutionContext) h).getNodeState());
+            }
+        });
         return r;
     }
 
@@ -181,11 +220,20 @@ public final class LocalRuntime implements ActivationAware {
             super(new JacksonPayloadMapper());
         }
 
+        @SuppressWarnings("PMD.UselessOverridingMethod")
+        @Override
+        protected void forEach(final BiConsumer<String, CommunicationContext.MessageListener> action) {
+            super.forEach(action);
+        }
+
+
         private void sendImpl(final String sender, final String recipient, final ByteBuffer bb) {
             checkState("STARTED".equals(getState()));
 
             final AbstractNode n = LocalRuntime.nodes.get(recipient);
-            checkState(n != null, "Unknown node with id '%s'", recipient);
+            final AbstractNodeRuntime nrt = (AbstractNodeRuntime) this.handlerById(recipient);
+
+            checkState(n != null || nrt != null, "Unknown message recipient with id '%s'", recipient);
 
             executor.submit(() -> {
                 try {

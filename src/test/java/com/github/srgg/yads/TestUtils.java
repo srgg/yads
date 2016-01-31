@@ -25,6 +25,7 @@ import net.javacrumbs.jsonunit.core.Option;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import com.github.srgg.yads.impl.api.Chain;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -34,7 +35,7 @@ import static net.javacrumbs.jsonunit.JsonMatchers.jsonEquals;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.argThat;
 
-public class ChainVerificationUtils {
+public class TestUtils {
 
     public static Chain.INodeInfo eqNodeId(String nodeId) {
         return argThat(matchNodeId(nodeId));
@@ -107,13 +108,13 @@ public class ChainVerificationUtils {
         doVerifyChain(chain, nodeSequence);
     }
 
-    public static class MessageMatcher<M extends Message> extends BaseMatcher<M> {
-        private final Class<M> clazz;
+    public static class MessageMatcher extends BaseMatcher {
+        private final Class clazz;
         private final Object ethalon;
         private final ConfigurableJsonMatcher matcher;
 
 
-        protected MessageMatcher(Class<M> messageClass, Object ethalon) {
+        protected MessageMatcher(Class messageClass, Object ethalon) {
             this.clazz = messageClass;
             this.ethalon = ethalon;
             matcher = jsonEquals(ethalon)
@@ -131,8 +132,8 @@ public class ChainVerificationUtils {
             matcher.describeTo(description);
         }
 
-        public static <M extends Message> MessageMatcher<M> create(Class<M> messageClass, Object expected) {
-            return new MessageMatcher<>(messageClass, expected);
+        public static MessageMatcher create(Class messageClass, Object expected) {
+            return new MessageMatcher(messageClass, expected);
         }
     }
 
@@ -171,5 +172,9 @@ public class ChainVerificationUtils {
         public static <M extends Message.MessageBuilder> MessageBuilderMatcher<M> create(Class<M> builderClass, Object expected) {
             return new MessageBuilderMatcher<>(builderClass, expected);
         }
+    }
+
+    public static <M extends Matcher> M message(Class messageClass, Object expected) {
+        return (M) MessageMatcher.create(messageClass, expected);
     }
 }

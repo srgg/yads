@@ -23,9 +23,10 @@ option java_package = "com.github.srgg.yads.api.message";
 enum MessageTypes {
     NodeStatus = 0;
     ControlMessage = 1;
-    StorageOperation = 2;
-    RecoveryRequest = 3;
-    RecoveryResponse = 4;
+    StorageOperationRequest = 2;
+    StorageOperationResponse = 3;
+    RecoveryRequest = 4;
+    RecoveryResponse = 5;
 }
 
 enum NodeType {

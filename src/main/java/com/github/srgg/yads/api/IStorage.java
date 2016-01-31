@@ -19,7 +19,7 @@
  */
 package com.github.srgg.yads.api;
 
-import com.github.srgg.yads.api.messages.StorageOperation;
+import com.github.srgg.yads.api.messages.StorageOperationRequest;
 
 /**
  * Generic storage interface.
@@ -27,5 +27,5 @@ import com.github.srgg.yads.api.messages.StorageOperation;
  * @author Sergey Galkin <srggal at gmail dot com>
  */
 public interface IStorage {
-    Object process(StorageOperation storageOperation) throws Exception;
+    Object process(StorageOperationRequest storageOperation) throws Exception;
 }

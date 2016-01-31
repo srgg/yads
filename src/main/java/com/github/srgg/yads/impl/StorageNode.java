@@ -22,6 +22,7 @@ package com.github.srgg.yads.impl;
 import com.github.srgg.yads.api.IStorage;
 import com.github.srgg.yads.api.messages.RecoveryRequest;
 import com.github.srgg.yads.api.messages.RecoveryResponse;
+import com.github.srgg.yads.api.messages.StorageOperationRequest;
 import com.github.srgg.yads.impl.api.context.Subscribe;
 import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.impl.api.context.OperationContext;
@@ -31,7 +32,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import com.github.srgg.yads.api.messages.StorageOperation;
 import com.github.srgg.yads.impl.util.InMemoryStorage;
 import org.javatuples.Pair;
 
@@ -46,11 +46,11 @@ public class StorageNode extends AbstractNode<StorageNodeContext> {
 
     private final IStorage storage;
 
-    private AbstractProcessingCycle<StorageOperation> processingCycle =
-            new AbstractProcessingCycle<StorageOperation>() {
+    private AbstractProcessingCycle<StorageOperationRequest> processingCycle =
+            new AbstractProcessingCycle<StorageOperationRequest>() {
 
         @Override
-        protected OperationContext<StorageOperation, Object> getContextFor(final StorageOperation op) {
+        protected OperationContext<StorageOperationRequest, Object> getContextFor(final StorageOperationRequest op) {
             final StorageNodeContext ctx = context();
             checkState(ctx != null, "Storage context can't be null");
             return ctx.contextFor(op);
@@ -115,7 +115,7 @@ public class StorageNode extends AbstractNode<StorageNodeContext> {
     }
 
     @Subscribe
-    public void onStorageRequest(final StorageOperation operation) throws Exception {
+    public void onStorageRequest(final StorageOperationRequest operation) throws Exception {
         final String s = getState();
         if (!StorageState.RUNNING.name().equals(s) && !StorageState.RECOVERING.name().equals(s)) {
             throw new IllegalStateException(
@@ -125,7 +125,7 @@ public class StorageNode extends AbstractNode<StorageNodeContext> {
         processingCycle.enqueue(operation);
     }
 
-    private abstract class AbstractProcessingCycle<T extends StorageOperation> implements Runnable {
+    private abstract class AbstractProcessingCycle<T extends StorageOperationRequest> implements Runnable {
         private Thread thread;
         private LinkedBlockingQueue<T> queuedRequests = new LinkedBlockingQueue<>();
 
@@ -167,14 +167,14 @@ public class StorageNode extends AbstractNode<StorageNodeContext> {
                     operation.getType(), operation.getId());
         }
 
-        protected abstract OperationContext<StorageOperation, Object> getContextFor(StorageOperation op);
+        protected abstract OperationContext<StorageOperationRequest, Object> getContextFor(StorageOperationRequest op);
 
         @Override
         public void run() {
             Thread.currentThread().setName("node-" + getId() + "-prcsngcycle");
             for (;;) {
                 try {
-                    final StorageOperation op = queuedRequests.peek();
+                    final StorageOperationRequest op = queuedRequests.peek();
                     if (op == null) {
                         // TODO: re-introduce as a config parameter
                         Thread.sleep(100L);
@@ -186,9 +186,9 @@ public class StorageNode extends AbstractNode<StorageNodeContext> {
                         break;
                     }
 
-                    final OperationContext<StorageOperation, Object> ctx = getContextFor(queuedRequests.poll());
+                    final OperationContext<StorageOperationRequest, Object> ctx = getContextFor(queuedRequests.poll());
                     assert ctx != null;
-                    StorageOperation operation = null;
+                    StorageOperationRequest operation = null;
                     try {
                         operation = ctx.operation();
                         final Object result = storage.process(operation);

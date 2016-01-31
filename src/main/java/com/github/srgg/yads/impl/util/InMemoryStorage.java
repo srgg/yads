@@ -20,7 +20,7 @@
 package com.github.srgg.yads.impl.util;
 
 import com.github.srgg.yads.api.IStorage;
-import com.github.srgg.yads.api.messages.StorageOperation;
+import com.github.srgg.yads.api.messages.StorageOperationRequest;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -42,7 +42,7 @@ public class InMemoryStorage implements IStorage {
     }
 
     @Override
-    public synchronized Object process(final StorageOperation storageOperation) throws Exception {
+    public synchronized Object process(final StorageOperationRequest storageOperation) throws Exception {
         switch (storageOperation.getType()) {
             case Get:
                 return data.get(storageOperation.getKey());

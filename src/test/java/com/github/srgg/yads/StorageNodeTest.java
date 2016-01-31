@@ -20,6 +20,7 @@
 package com.github.srgg.yads;
 
 import com.github.srgg.yads.api.messages.NodeStatus;
+import com.github.srgg.yads.api.messages.StorageOperationRequest;
 import org.junit.Before;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
@@ -33,7 +34,6 @@ import org.powermock.modules.junit4.PowerMockRunner;
 import com.github.srgg.yads.api.IStorage;
 import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.ControlMessage;
-import com.github.srgg.yads.api.messages.StorageOperation;
 import com.github.srgg.yads.impl.context.StorageExecutionContext;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 import com.github.srgg.yads.impl.api.context.OperationContext;
@@ -63,19 +63,19 @@ public class StorageNodeTest {
     private StorageNode node;
     private StorageExecutionContext nodeContext;
 
-    private StorageOperation allOperations[] = {
-            new StorageOperation.Builder()
+    private StorageOperationRequest allOperations[] = {
+            new StorageOperationRequest.Builder()
                     .setId(UUID.randomUUID())
                     .setSender("Anonymous")
                     .setKey("m1")
-                    .setType(StorageOperation.OperationType.Put)
+                    .setType(StorageOperationRequest.OperationType.Put)
                     .setObject("42")
                     .build(),
-            new StorageOperation.Builder()
+            new StorageOperationRequest.Builder()
                     .setId(UUID.randomUUID())
                     .setSender("Anonymous")
                     .setKey("m2")
-                    .setType(StorageOperation.OperationType.Get)
+                    .setType(StorageOperationRequest.OperationType.Get)
                     .build()
     };
 
@@ -106,10 +106,10 @@ public class StorageNodeTest {
         verifyZeroInteractions(nodeContext, storage, node);
 
         doAnswer(invocation -> {
-                final StorageOperation op = (StorageOperation) invocation.getArguments()[0];
+                final StorageOperationRequest op = (StorageOperationRequest) invocation.getArguments()[0];
                 doReturn(op).when(operationContext).operation();
                 return operationContext;
-        }).when(nodeContext).contextFor(any(StorageOperation.class));
+        }).when(nodeContext).contextFor(any(StorageOperationRequest.class));
 
     }
 
@@ -179,7 +179,7 @@ public class StorageNodeTest {
 
             assertEquals(s, node.getState());
 
-            for (StorageOperation op : allOperations) {
+            for (StorageOperationRequest op : allOperations) {
                 // TODO: rewrite with Exception Matcher to introduce message checking
                 try {
                     node.onStorageRequest(op);
@@ -202,7 +202,7 @@ public class StorageNodeTest {
          */
         verify(communicationContext, after(100)).send(
                 eq(CommunicationContext.LEADER_NODE),
-                argThat( ChainVerificationUtils.MessageMatcher.create(NodeStatus.class,
+                argThat( TestUtils.message(NodeStatus.class,
                         "{sender: 'node1',"
                             + "type: 'Storage',"
                             + "status: 'FAILED'"
@@ -221,7 +221,7 @@ public class StorageNodeTest {
                     .setState(StorageNode.StorageState.RECOVERING)
         );
 
-        for (StorageOperation op : allOperations) {
+        for (StorageOperationRequest op : allOperations) {
             node.onStorageRequest(op);
         }
 

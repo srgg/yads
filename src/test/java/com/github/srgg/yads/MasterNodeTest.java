@@ -153,7 +153,7 @@ public class MasterNodeTest {
             }
 
             verify(nodeContext, after(100)).manageNode(
-                    argThat(ChainVerificationUtils.MessageBuilderMatcher.create(ControlMessage.Builder.class, values)),
+                    argThat(TestUtils.MessageBuilderMatcher.create(ControlMessage.Builder.class, values)),
                     eq(nodeId));
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -161,6 +161,6 @@ public class MasterNodeTest {
     }
 
     private void verifyChain(String expectedChain) {
-        ChainVerificationUtils.verifyChain(masterNode.chain(), expectedChain);
+        TestUtils.verifyChain(masterNode.chain(), expectedChain);
     }
 }

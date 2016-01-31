@@ -92,8 +92,11 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
 
     // TODO: Requires to have default implementation
     @Override
-    public OperationContext<StorageOperation, Object> contextFor(final StorageOperation operation) {
-        return null;
+    public OperationContext<StorageOperationRequest, Object> contextFor(final StorageOperationRequest operation) {
+        return createOperationContext(operation, (ctx, op, r) -> ctx.sendMessage(operation.getSender(),
+                new StorageOperationResponse.Builder()
+                    .setObject(r)
+        ));
     }
 
     @Override
@@ -161,6 +164,11 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
                 }
                 break;
 
+
+            case StorageOperationRequest:
+                final StorageOperationRequest sor = (StorageOperationRequest) message;
+                node().onStorageRequest(sor);
+                break;
 
             default:
                 return false;

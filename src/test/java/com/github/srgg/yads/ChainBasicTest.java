@@ -148,7 +148,7 @@ public class ChainBasicTest {
 
     // Format: 'head-node - middle-node1 - ..  - (changed-node) - .. - tail-node'
     private void verifyChainOperation(ActionType action, String expectedChain) throws Exception {
-        final List<String> values = ChainVerificationUtils.parseExpectedChainTemplate(expectedChain);
+        final List<String> values = TestUtils.parseExpectedChainTemplate(expectedChain);
         final AtomicReference<String> changedNodeId = new AtomicReference<>(null);
         final AtomicInteger changedIdx = new AtomicInteger(-1);
 
@@ -178,13 +178,13 @@ public class ChainBasicTest {
             values.remove(changedIdx.get());
         }
 
-        ChainVerificationUtils.doVerifyChain(chain, values);
+        TestUtils.doVerifyChain(chain, values);
 
         // -- verify callback
         verify(chainListener).onNodeChanged(same(action),
-                ChainVerificationUtils.eqNodeId(changedNodeId.get()),
-                ChainVerificationUtils.eqNodeId(prevNodeId),
-                ChainVerificationUtils.eqNodeId(nextNodeId)
+                TestUtils.eqNodeId(changedNodeId.get()),
+                TestUtils.eqNodeId(prevNodeId),
+                TestUtils.eqNodeId(nextNodeId)
             );
 
         verifyZeroInteractions(chainListener);
