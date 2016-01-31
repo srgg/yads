@@ -195,6 +195,8 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
             if (!cm.getRoles().equals(oldRoles)) {
                 ns.role = cm.getRoles();
             } else {
+                // merge from previous state
+                ns.role = oldRoles;
                 oldRoles = null;
             }
         } else if (old != null && old.getRole() != null) {
