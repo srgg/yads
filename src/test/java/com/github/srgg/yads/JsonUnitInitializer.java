@@ -38,6 +38,8 @@ public class JsonUnitInitializer {
         final Object converter;
         try {
             converter = FieldUtils.readStaticField(JsonUtils.class, "converter", true);
+
+            @SuppressWarnings("unchecked")
             final List<NodeFactory> factories = (List<NodeFactory>) FieldUtils.readField(converter, "factories", true);
 
             ObjectMapper mapper;

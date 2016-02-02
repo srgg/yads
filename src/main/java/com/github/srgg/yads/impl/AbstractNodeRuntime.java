@@ -52,7 +52,7 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
 
     private final CommunicationContext messageContext;
     private final N node;
-    private AtomicReference<String> state = new AtomicReference<>();
+    private final AtomicReference<String> state = new AtomicReference<>();
 
     private int statusNotificationPeriod = 10;
     private ScheduledFuture stateNotifyFuture;
@@ -71,7 +71,7 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
         return messageContext;
     }
 
-    protected N node() {
+    public N node() {
         return node;
     }
 
@@ -101,16 +101,22 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
 
         doStart();
 
+        started = true;
         rescheduleStatusNotification(2, statusNotificationPeriod);
-
         logger().info("has been STARTED");
     }
 
     private void stop() {
         logger().debug("is about to stop");
         doStop();
+
+        if (stateNotifyFuture != null) {
+            stateNotifyFuture.cancel(true);
+        }
+
         executor.shutdown();
         messageContext.unregisterHandler(this);
+        started = false;
         logger().info("has been STOPPED");
     }
 
@@ -125,7 +131,12 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
     }
 
     private void rescheduleStatusNotification(final long initialDelay, final long period) {
-        if (stateNotifyFuture != null) {
+        if (!started) {
+            logger.warn("CAN'T Reschedule Status Notification, runtime is not in running state.");
+            return;
+        }
+
+        if (stateNotifyFuture != null && !stateNotifyFuture.isCancelled()) {
             stateNotifyFuture.cancel(true);
         }
 
@@ -149,13 +160,11 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
             case "STARTED":
                 checkState(!started, "Can't start node runtime '%s', it is already started", getId());
                 start();
-                started = true;
                 break;
 
             case "STOPPED":
                 checkState(started, "Can't stop node runtime '%s', it is not started", getId());
                 stop();
-                started = false;
                 break;
 
             default:

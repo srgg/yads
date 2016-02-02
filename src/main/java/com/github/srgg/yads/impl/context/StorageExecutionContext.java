@@ -44,6 +44,7 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
 
     public StorageExecutionContext(final CommunicationContext messageContext, final StorageNode node) {
         super(messageContext, node);
+        logger().debug("Created");
     }
 
 

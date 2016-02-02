@@ -37,11 +37,19 @@ import static org.junit.Assert.assertThat;
  */
 @FixMethodOrder(MethodSorters.JVM)
 public class RuntimeTest {
+    @Rule
+    public FancyTestWatcher watcher = new FancyTestWatcher();
+
     private LocalRuntime rt;
+
+
+    @BeforeClass
+    public static void setupTolerantJSON() {
+        JsonUnitInitializer.initialize();
+    }
 
     @Before
     public void initialize() throws Exception {
-        JsonUnitInitializer.initialize();
         rt = new LocalRuntime();
         rt.start();
     }
@@ -138,20 +146,20 @@ public class RuntimeTest {
 
     @Test(timeout = 60000)
     public void checkGentleReplication() throws Exception {
-        rt.createMasterNode("master-1");
+        rt.createMasterNode("master-21");
 
-        rt.createStorageNode("storage-1");
+        rt.createStorageNode("storage-21");
         rt.waitForRunningChain();
 
 
-        final Message m1 = rt.performRequest("storage-1", new StorageOperationRequest.Builder()
+        final Message m1 = rt.performRequest("storage-21", new StorageOperationRequest.Builder()
                 .setType(StorageOperationRequest.OperationType.Put)
                 .setKey("1")
                 .setObject("42")
         );
 
         assertThat(m1, TestUtils.message(StorageOperationResponse.class,
-                "{sender: 'storage-1', object: null}")
+                "{sender: 'storage-21', object: null}")
         );
 
         final StorageOperationRequest.Builder getValueBuilder = new StorageOperationRequest.Builder()
@@ -159,22 +167,22 @@ public class RuntimeTest {
                 .setKey("1");
 
         // read value to be sure in 100% it has been stored properly
-        final StorageOperationResponse m2 = rt.performRequest("storage-1", getValueBuilder);
+        final StorageOperationResponse m2 = rt.performRequest("storage-21", getValueBuilder);
 
         assertEquals("42", m2.getObject());
 
         // -- spinnup storage-2 and check that it'll be recovered properly
-        rt.createStorageNode("storage-2");
+        rt.createStorageNode("storage-22");
         rt.waitForRunningChain();
 
-        final StorageOperationResponse m3 = rt.performRequest("storage-2", getValueBuilder);
+        final StorageOperationResponse m3 = rt.performRequest("storage-22", getValueBuilder);
         assertEquals("42", m3.getObject());
 
         // -- spinnup storage-3 and check that it'll be recovered properly
-        rt.createStorageNode("storage-3");
+        rt.createStorageNode("storage-23");
         rt.waitForRunningChain();
 
-        final StorageOperationResponse m4 = rt.performRequest("storage-3", getValueBuilder);
+        final StorageOperationResponse m4 = rt.performRequest("storage-23", getValueBuilder);
         assertEquals("42", m4.getObject());
     }
 

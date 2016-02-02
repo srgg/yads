@@ -46,7 +46,7 @@ public class StorageNode extends AbstractNode<StorageNodeContext> {
 
     private final IStorage storage;
 
-    private AbstractProcessingCycle<StorageOperationRequest> processingCycle =
+    private final AbstractProcessingCycle<StorageOperationRequest> processingCycle =
             new AbstractProcessingCycle<StorageOperationRequest>() {
 
         @Override
@@ -60,6 +60,7 @@ public class StorageNode extends AbstractNode<StorageNodeContext> {
     public StorageNode(final String nid, final IStorage s) {
         super(nid, Messages.NodeType.Storage);
         this.storage = s;
+        logger().debug("Created");
     }
 
     @Override
@@ -127,7 +128,7 @@ public class StorageNode extends AbstractNode<StorageNodeContext> {
 
     private abstract class AbstractProcessingCycle<T extends StorageOperationRequest> implements Runnable {
         private Thread thread;
-        private LinkedBlockingQueue<T> queuedRequests = new LinkedBlockingQueue<>();
+        private final LinkedBlockingQueue<T> queuedRequests = new LinkedBlockingQueue<>();
 
         public boolean isRunning() {
             return thread != null;

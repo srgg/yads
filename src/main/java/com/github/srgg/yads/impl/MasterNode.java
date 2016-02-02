@@ -35,7 +35,7 @@ import java.util.Map;
  */
 public class MasterNode extends AbstractNode<MasterNodeContext> {
     private final Map<String, String> nodeStates = new HashMap<>();
-    private StateAwareChain chain;
+    private final StateAwareChain chain;
 
     public static class NodeInfo extends HashMap<String, Object> {
     }
@@ -147,6 +147,7 @@ public class MasterNode extends AbstractNode<MasterNodeContext> {
             }
 
         });
+        logger().debug("Created");
     }
 
     protected void onNewNode(final String nodeId, final Messages.NodeType type, final String state) {

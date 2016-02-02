@@ -43,6 +43,8 @@ import static org.mockito.Mockito.*;
  */
 @RunWith(MockitoJUnitRunner.class)
 public class ChainBasicTest {
+    @Rule
+    public FancyTestWatcher watcher = new FancyTestWatcher();
 
     public static class TestChain extends GenericChain<Object> {
         public TestChain addNodeT(String nodeId) throws Exception {
@@ -59,10 +61,10 @@ public class ChainBasicTest {
     private TestChain chain;
 
     @Mock
-    private TestChain.ChainListener chainListener;
+    private TestChain.ChainListener<Object> chainListener;
 
     @Rule
-    public ExpectedException exception = ExpectedException.none();
+    public final ExpectedException exception = ExpectedException.none();
 
     @Before
     public void initialize() throws Exception {
@@ -139,6 +141,7 @@ public class ChainBasicTest {
 
         chain.registerHandler(chainListener);
 
+        //noinspection unchecked
         reset(chainListener);
         doReturn("simple-listener")
                 .when(chainListener)

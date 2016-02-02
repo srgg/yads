@@ -23,6 +23,7 @@ import com.github.srgg.yads.api.messages.NodeStatus;
 import com.github.srgg.yads.api.messages.StorageOperationRequest;
 import org.junit.Before;
 import org.junit.FixMethodOrder;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
@@ -51,6 +52,9 @@ import static org.mockito.Mockito.*;
 @PrepareForTest({StorageNode.class})
 @FixMethodOrder(MethodSorters.JVM)
 public class StorageNodeTest {
+    @Rule
+    public FancyTestWatcher watcher = new FancyTestWatcher();
+
     @Mock
     private CommunicationContext communicationContext;
 
@@ -63,7 +67,7 @@ public class StorageNodeTest {
     private StorageNode node;
     private StorageExecutionContext nodeContext;
 
-    private StorageOperationRequest allOperations[] = {
+    private final StorageOperationRequest[] allOperations = {
             new StorageOperationRequest.Builder()
                     .setId(UUID.randomUUID())
                     .setSender("Anonymous")
@@ -184,7 +188,7 @@ public class StorageNodeTest {
                 try {
                     node.onStorageRequest(op);
                     fail();
-                } catch (IllegalStateException ex) {
+                } catch (IllegalStateException ignored) {
                 }
             }
         }

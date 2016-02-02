@@ -38,7 +38,7 @@ public abstract class AbstractNode<C extends NodeContext> implements ActivationA
     private final String nodeId;
 
     // TODO: get rid of it and incapsulate in NodeContext
-    private AtomicReference<String> state = new AtomicReference<>(State.NEW.name());
+    private final AtomicReference<String> state = new AtomicReference<>(State.NEW.name());
 
     private final Map<String, Set<String>> allowedTransitions;
     private C context;
@@ -72,6 +72,7 @@ public abstract class AbstractNode<C extends NodeContext> implements ActivationA
     @Override
     public void configure(final C ctx) throws Exception {
         this.context = ctx;
+        logger().debug("Configured");
     }
 
     @Override
@@ -167,6 +168,7 @@ public abstract class AbstractNode<C extends NodeContext> implements ActivationA
 
         private static <E extends Enum<E>> Set<String> enumAsStringSet(final E... values) {
             if (values.length == 0) {
+                //noinspection unchecked
                 return Collections.EMPTY_SET;
             }
 

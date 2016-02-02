@@ -87,7 +87,7 @@ public class GenericChain<E> extends GenericSink<GenericChain.ChainListener<E>>
 
         void removeRole(final ControlMessage.Role role) {
             if (roles != null) {
-                roles.remove(role);
+                roles.remove(ControlMessage.Role.Tail);
             }
         }
 
@@ -185,7 +185,7 @@ public class GenericChain<E> extends GenericSink<GenericChain.ChainListener<E>>
     private NodeVertex<E> head;
     private NodeVertex<E> tail;
 
-    private ChainGraph theChain = new ChainGraph(DefaultEdge.class);
+    private final ChainGraph theChain = new ChainGraph(DefaultEdge.class);
 
     protected ChainGraph chain() {
         return theChain;

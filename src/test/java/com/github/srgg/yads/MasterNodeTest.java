@@ -21,10 +21,7 @@ package com.github.srgg.yads;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
 import org.mockito.Mock;
@@ -45,6 +42,8 @@ import static org.mockito.Mockito.*;
 @RunWith(MockitoJUnitRunner.class)
 @FixMethodOrder(MethodSorters.JVM)
 public class MasterNodeTest {
+    @Rule
+    public FancyTestWatcher watcher = new FancyTestWatcher();
 
     @Mock
     private MasterNodeContext nodeContext;

@@ -36,6 +36,7 @@ public class MasterNodeExecutionContext extends AbstractNodeRuntime<MasterNode> 
 
     public MasterNodeExecutionContext(final CommunicationContext messageContext, final MasterNode node) {
         super(messageContext, node);
+        logger().debug("Created");
     }
 
     @Override

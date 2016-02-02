@@ -29,7 +29,7 @@ import java.util.Map;
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
 public class InMemoryStorage implements IStorage {
-    private HashMap<String, Object> data = new HashMap<>();
+    private final HashMap<String, Object> data = new HashMap<>();
 
     @SuppressWarnings("unchecked")
     public synchronized Map<String, Object> snapshot() {
