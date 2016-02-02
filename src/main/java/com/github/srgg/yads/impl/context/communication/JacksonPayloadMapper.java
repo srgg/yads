@@ -23,7 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.srgg.yads.impl.api.context.PayloadMapper;
 
 public class JacksonPayloadMapper implements PayloadMapper {
-    private ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper();
 
     @Override
     public byte[] toBytes(final Class clazz, final Object payload) throws Exception {

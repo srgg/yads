@@ -34,76 +34,93 @@ import java.util.Map;
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
 public class MasterNode extends AbstractNode<MasterNodeContext> {
-    private Map<String, String> nodeStates = new HashMap<>();
-    private StateAwareChain chain;
+    private final Map<String, String> nodeStates = new HashMap<>();
+    private final StateAwareChain chain;
 
-    protected static class NodeInfo extends HashMap<String, Object> {
+    public static class NodeInfo extends HashMap<String, Object> {
     }
 
     public MasterNode(final String nodeId) {
         super(nodeId, Messages.NodeType.Master);
         chain = new StateAwareChain();
         chain.registerHandler(new GenericChain.ChainListener<NodeInfo>() {
+
+            /**
+             * @apiNote It should be the only place that sends {@link ControlMessage} to the storage nodes.
+             */
             @Override
             public void onNodeChanged(final ActionType action, final Chain.INodeInfo<NodeInfo> node,
                                       final Chain.INodeInfo<NodeInfo> prevNode,
                                       final Chain.INodeInfo<NodeInfo> nextNode) throws Exception {
                 switch (action) {
-                    case Added:
-                        final ControlMessage.Builder builder = mkSetChainBuilder(node, prevNode, nextNode);
+                    case NodeAdded:
+                        final ControlMessage.Builder builderA = mkSetChainBuilder(node, prevNode, nextNode);
 
                         /**
-                         * There is case that can't be handled by ControlMessage.Builder in a smart manner:
+                         * There is a case that can't be handled by ControlMessage.Builder in a smart manner:
                          *   first chain node
                          */
                         if (node.isHead() && node.isTail()) {
                             assert nextNode == null;
                             assert prevNode == null;
 
-                            builder
+                            builderA
                                 .setType(EnumSet.allOf(ControlMessage.Type.class))
-                                .setRoles(EnumSet.of(ControlMessage.Role.Head, ControlMessage.Role.Tail));
+                                .setRoles(EnumSet.of(ControlMessage.Role.Head, ControlMessage.Role.Tail))
+                                .setState(StorageNode.StorageState.RUNNING);
 
+                        } else {
+                            builderA.setState(StorageNode.StorageState.RECOVERING);
                         }
 
-                        final ControlMessage msg = builder
-                                .setState(StorageNode.StorageState.RECOVERING.name())
-                                .build();
-
-                        context().manageNode(msg, node.getId());
+                        context().manageNode(builderA, node.getId());
 
                         // -- reconfigure adjacent nodes
                         if (prevNode != null) {
 
                             assert node.equals(prevNode.nextNode());
 
-                            final ControlMessage msgPrev = mkSetChainBuilder(
+                            final ControlMessage.Builder bPrev = mkSetChainBuilder(
                                     prevNode,
                                     prevNode.prevNode(),
                                     prevNode.nextNode()
-                                ).build();
+                                );
 
-                            context().manageNode(msgPrev, prevNode.getId());
+                            context().manageNode(bPrev, prevNode.getId());
                         }
 
                         if (nextNode != null) {
 
                             assert node.equals(nextNode.prevNode());
 
-                            final ControlMessage msgNext = mkSetChainBuilder(
+                            final ControlMessage.Builder bNext = mkSetChainBuilder(
                                     nextNode,
                                     nextNode.prevNode(),
                                     nextNode.nextNode()
-                                ).build();
+                                );
 
-                            context().manageNode(msgNext, nextNode.getId());
+                            context().manageNode(bNext, nextNode.getId());
                         }
 
                         logger().info("[NODE CHAINED] '{}' was added to the chain", node);
                         break;
 
+                    case NodeStateChanged:
+                        switch (StorageNode.StorageState.valueOf(node.state())) {
+                            case RECOVERED:
+                                final ControlMessage.Builder builderC = mkSetChainBuilder(node, prevNode, nextNode)
+                                        .setState(StorageNode.StorageState.RUNNING);
+
+                                context().manageNode(builderC, node.getId());
+                                break;
+
+                            default:
+                                // do nothing
+                        }
+                        break;
+
                     default:
-                        throw new UnsupportedOperationException();
+                        throw new UnsupportedOperationException("Unhandled action '" + action + "'");
                 }
             }
 
@@ -130,6 +147,7 @@ public class MasterNode extends AbstractNode<MasterNodeContext> {
             }
 
         });
+        logger().debug("Created");
     }
 
     protected void onNewNode(final String nodeId, final Messages.NodeType type, final String state) {
@@ -182,14 +200,23 @@ public class MasterNode extends AbstractNode<MasterNodeContext> {
                     );
 
                 case STARTED:
-                    addNode(nodeId, null);
+                    addNode(nodeId, newState.name(), null);
                     break;
 
                 case FAILED:
-                    removeNode(nodeId);
+                    removeNode(nodeId, newState.name());
                     break;
 
                 case RECOVERING:
+                    fireNodeStateChanged(nodeId, newState.name());
+                    break;
+
+                case RECOVERED:
+                    fireNodeStateChanged(nodeId, newState.name());
+                    break;
+
+                case RUNNING:
+                    fireNodeStateChanged(nodeId, newState.name());
                     break;
 
                 default:
@@ -200,7 +227,7 @@ public class MasterNode extends AbstractNode<MasterNodeContext> {
         }
     }
 
-    public Chain chain() {
+    public Chain<NodeInfo> chain() {
         return chain;
     }
 }

@@ -19,18 +19,23 @@
  */
 package com.github.srgg.yads;
 
+import com.github.srgg.yads.api.messages.Message;
+import net.javacrumbs.jsonunit.ConfigurableJsonMatcher;
+import net.javacrumbs.jsonunit.core.Option;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import com.github.srgg.yads.impl.api.Chain;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static net.javacrumbs.jsonunit.JsonMatchers.jsonEquals;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.argThat;
 
-public class ChainVerificationUtils {
+public class TestUtils {
 
     public static Chain.INodeInfo eqNodeId(String nodeId) {
         return argThat(matchNodeId(nodeId));
@@ -101,5 +106,75 @@ public class ChainVerificationUtils {
     public static <T> void verifyChain(Chain<T> chain, String expectedChain) {
         final List<String>  nodeSequence = parseExpectedChainTemplate(expectedChain);
         doVerifyChain(chain, nodeSequence);
+    }
+
+    public static class MessageMatcher extends BaseMatcher {
+        private final Class clazz;
+        private final Object ethalon;
+        private final ConfigurableJsonMatcher matcher;
+
+
+        protected MessageMatcher(Class messageClass, Object ethalon) {
+            this.clazz = messageClass;
+            this.ethalon = ethalon;
+            matcher = jsonEquals(ethalon)
+                    .when(Option.IGNORING_EXTRA_FIELDS);
+        }
+
+        @Override
+        public boolean matches(Object item) {
+            return item == null && ethalon == null
+                    || item != null && clazz.isInstance(item) && matcher.matches(item);
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            matcher.describeTo(description);
+        }
+
+        public static MessageMatcher create(Class messageClass, Object expected) {
+            return new MessageMatcher(messageClass, expected);
+        }
+    }
+
+    public static class MessageBuilderMatcher<M extends Message.MessageBuilder> extends BaseMatcher<M> {
+        private final Class<M> clazz;
+        private final Object ethalon;
+        private final ConfigurableJsonMatcher matcher;
+
+        protected MessageBuilderMatcher(Class<M> builderClass, Object ethalon) {
+            this.ethalon = ethalon;
+            this.clazz = builderClass;
+
+            matcher = jsonEquals(ethalon)
+                    .when(Option.IGNORING_EXTRA_FIELDS);
+        }
+
+        @Override
+        public boolean matches(Object item) {
+            if (item == null && ethalon == null) {
+                return true;
+            }
+
+            if (item != null && Message.MessageBuilder.class.isInstance(item)) {
+                final Object m = ((Message.MessageBuilder) item).buildPartial();
+
+                return matcher.matches(m);
+            }
+            return false;
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            matcher.describeTo(description);
+        }
+
+        public static <M extends Message.MessageBuilder> MessageBuilderMatcher<M> create(Class<M> builderClass, Object expected) {
+            return new MessageBuilderMatcher<>(builderClass, expected);
+        }
+    }
+
+    public static <M extends Matcher> M message(Class messageClass, Object expected) {
+        return (M) MessageMatcher.create(messageClass, expected);
     }
 }

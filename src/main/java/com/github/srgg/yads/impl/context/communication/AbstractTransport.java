@@ -19,12 +19,14 @@
  */
 package com.github.srgg.yads.impl.context.communication;
 
+import com.github.srgg.yads.api.Identifiable;
 import com.github.srgg.yads.api.messages.Message;
 import com.github.srgg.yads.api.messages.MessageCode;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 import com.github.srgg.yads.impl.api.context.PayloadMapper;
 import com.github.srgg.yads.impl.util.GenericSink;
 import com.github.srgg.yads.impl.util.MessageUtils;
+import com.github.srgg.yads.impl.util.TaggedLogger;
 import org.inferred.freebuilder.shaded.org.apache.commons.lang3.ClassUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,10 +44,11 @@ import static com.google.common.base.Preconditions.checkState;
 /**
  * @author Sergey Galkin <srggal at gmail dot com>
  */
-public abstract class AbstractTransport extends GenericSink<CommunicationContext.MessageListener> implements CommunicationContext {
-    private final Logger logger = LoggerFactory.getLogger(getClass());
+public abstract class AbstractTransport extends GenericSink<CommunicationContext.MessageListener>
+        implements CommunicationContext, Identifiable<String> {
+    private final Logger logger = new TaggedLogger(LoggerFactory.getLogger(getClass()), "Transport '" + this.getId() + "': ");
 
-    private HashMap<Byte, Class> messageBindings = new HashMap<>();
+    private final HashMap<Byte, Class<? extends Message>> messageBindings = new HashMap<>();
     private final PayloadMapper payloadMapper;
 
     public AbstractTransport(final PayloadMapper pm) {
@@ -78,9 +81,7 @@ public abstract class AbstractTransport extends GenericSink<CommunicationContext
 
     protected abstract void doSend(String sender, String recipient, ByteBuffer bb) throws Exception;
 
-    protected final int onReceive(final String sender, final String recipient,
-                                  final ByteBuffer bb) throws Exception {
-        // -- decode
+    protected final int decode(final ByteBuffer bb, final List<Message> out) throws Exception {
         if (bb.remaining() < 4) {
             return 4;
         }
@@ -99,14 +100,20 @@ public abstract class AbstractTransport extends GenericSink<CommunicationContext
 
         final Class<? extends Message> c = getMessageClass(msgCode);
         final Message msg = payloadMapper.fromBytes(c, p);
+        out.add(msg);
+        return -1;
+    }
 
-        // -- fire
+    protected final int onReceive(final String recipient, final Message msg) throws Exception {
+        final String sender = msg.getSender();
+        final byte msgCode = getMessageCodeFor(msg);
         final Messages.MessageTypes mt = Messages.MessageTypes.valueOf(msgCode);
+
         if (logger.isTraceEnabled()) {
             logger.trace(
                     MessageUtils.dumpMessage(msg, "[MSG IN] '%s' -> '%s': %s@%s",
-                        msg.getSender(),  recipient, mt, msg.getId())
-                );
+                            msg.getSender(),  recipient, mt, msg.getId())
+            );
         } else {
             logger.debug("[MSG IN]  '{}' -> '{}': {}@{}", sender, recipient, mt, msg.getId());
         }
@@ -114,7 +121,7 @@ public abstract class AbstractTransport extends GenericSink<CommunicationContext
         boolean isHandled = true;
         if (recipient != null) {
             final CommunicationContext.MessageListener listener = handlerById(recipient);
-            checkState(listener != null, "Can't process received message '%s' sended by '%s', recipient '%s' is not registered.",
+            checkState(listener != null, "Can't process received message '%s' was sent by '%s', recipient '%s' is not registered.",
                     msgCode, sender, recipient);
 
             isHandled = listener.onMessage(recipient, mt, msg);
@@ -153,7 +160,7 @@ public abstract class AbstractTransport extends GenericSink<CommunicationContext
     }
 
     @edu.umd.cs.findbugs.annotations.SuppressWarnings("NP_NULL_ON_SOME_PATH")
-    private static byte getMessageCodeFor(final Message msg) {
+    protected static byte getMessageCodeFor(final Message msg) {
         final List<Class<?>> interfaces =  ClassUtils.getAllInterfaces(msg.getClass());
 
         Annotation mc = null;
@@ -169,18 +176,19 @@ public abstract class AbstractTransport extends GenericSink<CommunicationContext
     }
 
     private Class<? extends Message> getMessageClass(final byte msgCode) {
-        Class c = messageBindings.get(Byte.valueOf(msgCode));
+        Class<? extends Message> c = messageBindings.get(msgCode);
         if (c == null) {
             // Try to resolve it
             Messages.MessageTypes mt = Messages.MessageTypes.valueOf(msgCode);
             final String str = mt.name();
 
             try {
-                c = Class.forName("com.github.srgg.yads.api.messages." + str);
+                //noinspection unchecked
+                c = (Class<? extends Message>) Class.forName("com.github.srgg.yads.api.messages." + str);
             } catch (ClassNotFoundException e) {
                 throw new IllegalStateException(String.format("Nothing known about the message with code '%s', is not registered", msgCode));
             }
-            messageBindings.put(Byte.valueOf(msgCode), c);
+            messageBindings.put(msgCode, c);
         }
         return c;
     }

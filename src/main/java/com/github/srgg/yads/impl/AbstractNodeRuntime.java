@@ -19,6 +19,7 @@
  */
 package com.github.srgg.yads.impl;
 
+import com.github.srgg.yads.api.messages.Message;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 import com.github.srgg.yads.impl.util.TaggedLogger;
 import org.slf4j.Logger;
@@ -28,6 +29,7 @@ import com.github.srgg.yads.impl.api.context.NodeContext;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -50,8 +52,10 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
 
     private final CommunicationContext messageContext;
     private final N node;
-    private AtomicReference<String> state = new AtomicReference<>();
+    private final AtomicReference<String> state = new AtomicReference<>();
 
+    private int statusNotificationPeriod = 10;
+    private ScheduledFuture stateNotifyFuture;
     private ScheduledExecutorService executor;
 
     public AbstractNodeRuntime(final CommunicationContext mc, final N n) {
@@ -63,17 +67,29 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
         return logger;
     }
 
-    protected CommunicationContext communicationContext() {
+    private CommunicationContext communicationContext() {
         return messageContext;
     }
 
-    protected N node() {
+    public N node() {
         return node;
     }
 
     @Override
     public String getId() {
         return node.getId();
+    }
+
+    protected final <M extends Message> M sendMessage(final String recipient,
+                                     final Message.MessageBuilder<M, ?> builder) throws Exception {
+
+        final Object b = builder.setSender(getId());
+
+        @SuppressWarnings("unchecked")
+        final M m = ((Message.MessageBuilder<M, ?>) b).build();
+
+        communicationContext().send(recipient, m);
+        return m;
     }
 
     private void start() {
@@ -85,30 +101,22 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
 
         doStart();
 
-        // schedule status notifications
-        executor.scheduleAtFixedRate(() -> {
-            try {
-                final String status = state.get();
-                final NodeStatus msg = new NodeStatus.Builder()
-                        .setSender(getId())
-                        .setStatus(status)
-                        .setNodeType(node.getNodeType())
-                        .build();
-
-                messageContext.send(CommunicationContext.LEADER_NODE, msg);
-            } catch (Exception e) {
-                logger.error("Can't send status", e);
-            }
-        }, 2, 10, TimeUnit.SECONDS);
-
+        started = true;
+        rescheduleStatusNotification(2, statusNotificationPeriod);
         logger().info("has been STARTED");
     }
 
     private void stop() {
         logger().debug("is about to stop");
         doStop();
+
+        if (stateNotifyFuture != null) {
+            stateNotifyFuture.cancel(true);
+        }
+
         executor.shutdown();
         messageContext.unregisterHandler(this);
+        started = false;
         logger().info("has been STOPPED");
     }
 
@@ -118,19 +126,45 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
     protected void doStop() {
     }
 
+    protected void notifyAboutNodeStatus() {
+        rescheduleStatusNotification(0, statusNotificationPeriod);
+    }
+
+    private void rescheduleStatusNotification(final long initialDelay, final long period) {
+        if (!started) {
+            logger.warn("CAN'T Reschedule Status Notification, runtime is not in running state.");
+            return;
+        }
+
+        if (stateNotifyFuture != null && !stateNotifyFuture.isCancelled()) {
+            stateNotifyFuture.cancel(true);
+        }
+
+        stateNotifyFuture = executor.scheduleAtFixedRate(() -> {
+            try {
+                final String status = state.get();
+                final NodeStatus.Builder b = new NodeStatus.Builder()
+                        .setStatus(status)
+                        .setNodeType(node.getNodeType());
+
+                sendMessage(CommunicationContext.LEADER_NODE, b);
+            } catch (Exception e) {
+                logger.error("Can't send status", e);
+            }
+        }, initialDelay, period, TimeUnit.SECONDS);
+    }
+
     @Override
     public void stateChanged(final String st) {
         switch (st) {
             case "STARTED":
                 checkState(!started, "Can't start node runtime '%s', it is already started", getId());
                 start();
-                started = true;
                 break;
 
             case "STOPPED":
                 checkState(started, "Can't stop node runtime '%s', it is not started", getId());
                 stop();
-                started = false;
                 break;
 
             default:

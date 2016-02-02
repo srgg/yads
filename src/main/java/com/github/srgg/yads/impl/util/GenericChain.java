@@ -40,8 +40,9 @@ public class GenericChain<E> extends GenericSink<GenericChain.ChainListener<E>>
 
     public interface ChainListener<E> extends Identifiable<String> {
         enum ActionType {
-            Added,
-            Removed
+            NodeAdded,
+            NodeRemoved,
+            NodeStateChanged
         }
 
         void onNodeChanged(ActionType action, Chain.INodeInfo<E> node, Chain.INodeInfo<E> prevNode,
@@ -58,13 +59,17 @@ public class GenericChain<E> extends GenericSink<GenericChain.ChainListener<E>>
     private static final class NodeVertex<E> implements Chain.INodeInfo<E> {
         private final ChainGraph graph;
         private final String nodeId;
+        private String prevState;
+        private String state;
         private final E extendedInfo;
         private EnumSet<ControlMessage.Role> roles = null;
 
-        private NodeVertex(final ChainGraph g, final String nid, final E info) {
+        private NodeVertex(final ChainGraph g, final String nid, final String st, final E info) {
             this.graph = g;
             this.nodeId = nid;
+            this.state = st;
             this.extendedInfo = info;
+            this.state = "CREATED";
         }
 
         @Override
@@ -82,8 +87,21 @@ public class GenericChain<E> extends GenericSink<GenericChain.ChainListener<E>>
 
         void removeRole(final ControlMessage.Role role) {
             if (roles != null) {
-                roles.remove(role);
+                roles.remove(ControlMessage.Role.Tail);
             }
+        }
+
+        public String state() {
+            return state;
+        }
+
+        private void setState(final String st) {
+            prevState = this.state;
+            this.state = st;
+        }
+
+        public String previousState() {
+            return prevState;
         }
 
         @Override
@@ -159,22 +177,22 @@ public class GenericChain<E> extends GenericSink<GenericChain.ChainListener<E>>
             }
         }
 
-        public static <T> NodeVertex<T> create(final ChainGraph g, final String nodeId, final T info) {
-            return new NodeVertex<>(g, nodeId, info);
+        public static <T> NodeVertex<T> create(final ChainGraph g, final String nodeId, final String state, final T info) {
+            return new NodeVertex<>(g, nodeId, state, info);
         }
     }
 
     private NodeVertex<E> head;
     private NodeVertex<E> tail;
 
-    private ChainGraph theChain = new ChainGraph(DefaultEdge.class);
+    private final ChainGraph theChain = new ChainGraph(DefaultEdge.class);
 
     protected ChainGraph chain() {
         return theChain;
     }
 
-    protected synchronized GenericChain addNode(final String nodeId, final E nodeInfo) throws Exception {
-        final NodeVertex<E> nv = NodeVertex.create(theChain, nodeId, nodeInfo);
+    protected synchronized GenericChain addNode(final String nodeId, final String state, final E nodeInfo) throws Exception {
+        final NodeVertex<E> nv = NodeVertex.create(theChain, nodeId, state, nodeInfo);
         checkArgument(theChain.addVertex(nv),
                 "Can't add '%s' node to the theChain, since it is already in the theChain",
                 nodeId);
@@ -192,7 +210,7 @@ public class GenericChain<E> extends GenericSink<GenericChain.ChainListener<E>>
         nv.addRole(ControlMessage.Role.Tail);
 
         checkLinerity(nv);
-        fireNodeChange(ChainListener.ActionType.Added, nv, oldTail, null);
+        fireNodeChange(ChainListener.ActionType.NodeAdded, nv, oldTail, null);
         return this;
     }
 
@@ -228,10 +246,11 @@ public class GenericChain<E> extends GenericSink<GenericChain.ChainListener<E>>
         return null;
     }
 
-    protected synchronized Chain.INodeInfo<E> removeNode(final String nodeId) throws Exception {
+    protected synchronized Chain.INodeInfo<E> removeNode(final String nodeId, final String state) throws Exception {
         final NodeVertex<E> nv = vertexByNodeId(nodeId);
         checkArgument(nv != null, "Can't remove '%s' node, since it is not in the chain", nodeId);
         checkLinerity(nv);
+        nv.setState(state);
 
         NodeVertex<E> next = null, prev = null;
 
@@ -294,8 +313,19 @@ public class GenericChain<E> extends GenericSink<GenericChain.ChainListener<E>>
             checkLinerity(next);
         }
 
-        fireNodeChange(ChainListener.ActionType.Removed, nv, prev, next);
+        fireNodeChange(ChainListener.ActionType.NodeRemoved, nv, prev, next);
         return nv;
+    }
+
+    protected void fireNodeStateChanged(final String nodeId, final String state) throws Exception {
+        final NodeVertex<E> v = vertexByNodeId(nodeId);
+        checkState(v != null, "Node with id '%s' is unknown", nodeId);
+
+        final INodeInfo<E> nv = v.nextNode();
+        final INodeInfo<E> pv = v.prevNode();
+
+        v.setState(state);
+        fireNodeChange(ChainListener.ActionType.NodeStateChanged, v, pv, nv);
     }
 
     private void fireNodeChange(final ChainListener.ActionType action, final Chain.INodeInfo<E> node,
@@ -323,10 +353,10 @@ public class GenericChain<E> extends GenericSink<GenericChain.ChainListener<E>>
         }
 
         final ArrayList<Chain.INodeInfo<E>> result = new ArrayList<>(theChain.vertexSet().size());
-        final DepthFirstIterator iterator = new DepthFirstIterator(theChain, head());
+        final DepthFirstIterator<NodeVertex<E>, ?> iterator = new DepthFirstIterator(theChain, head());
 
         while (iterator.hasNext()) {
-            final NodeVertex<E> n = (NodeVertex<E>) iterator.next();
+            final NodeVertex<E> n = iterator.next();
             checkLinerity(n);
             result.add(n);
         }
@@ -341,6 +371,6 @@ public class GenericChain<E> extends GenericSink<GenericChain.ChainListener<E>>
 
     @Override
     public boolean contains(final String nodeId) {
-        return theChain.vertexSet().contains(nodeId);
+        return vertexByNodeId(nodeId) != null;
     }
 }

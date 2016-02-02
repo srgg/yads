@@ -19,10 +19,9 @@
  */
 package com.github.srgg.yads.api.messages;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import org.inferred.freebuilder.FreeBuilder;
 import com.github.srgg.yads.api.message.Messages;
+import org.inferred.freebuilder.FreeBuilder;
 import org.inferred.freebuilder.shaded.com.google.common.annotations.VisibleForTesting;
 
 import java.util.UUID;
@@ -30,17 +29,11 @@ import java.util.UUID;
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
-@MessageCode(Messages.MessageTypes.NodeStatus)
-@JsonDeserialize(builder = NodeStatus.Builder.class)
+@MessageCode(Messages.MessageTypes.RecoveryRequest)
+@JsonDeserialize(builder = RecoveryRequest.Builder.class)
 @FreeBuilder
-public interface NodeStatus extends Message {
-    @JsonProperty("type")
-    Messages.NodeType getNodeType();
-
-    @JsonProperty("status")
-    String getStatus();
-
-    class Builder extends NodeStatus_Builder implements MessageBuilder<NodeStatus, Builder> {
+public interface RecoveryRequest extends Message {
+    class Builder extends RecoveryRequest_Builder  implements MessageBuilder<RecoveryRequest, RecoveryRequest_Builder> {
         public Builder() {
             setId(UUID.randomUUID());
         }
@@ -50,7 +43,7 @@ public interface NodeStatus extends Message {
         }
 
         @Override
-        public NodeStatus build() {
+        public RecoveryRequest build() {
             return super.build();
         }
 

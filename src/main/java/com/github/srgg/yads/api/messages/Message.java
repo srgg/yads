@@ -21,6 +21,7 @@ package com.github.srgg.yads.api.messages;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.srgg.yads.api.Identifiable;
+import com.google.common.annotations.VisibleForTesting;
 
 import java.util.UUID;
 
@@ -30,4 +31,20 @@ import java.util.UUID;
 public interface Message extends Identifiable<UUID> {
     @JsonProperty("sender")
     String getSender();
+
+    @JsonProperty("id")
+    @Override
+    UUID getId();
+
+    interface MessageBuilder<M extends Message, B> {
+        B setId(UUID id);
+        UUID getId();
+
+        MessageBuilder setSender(String id);
+
+        M build();
+
+        @VisibleForTesting
+        M buildPartial();
+    }
 }

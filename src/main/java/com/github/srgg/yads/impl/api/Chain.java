@@ -33,6 +33,7 @@ public interface Chain<E> extends Iterable<Chain.INodeInfo<E>> {
         INodeInfo<E> prevNode();
 
         E extendedInfo();
+        String state();
 
         default boolean isHead() {
             return prevNode() == null;

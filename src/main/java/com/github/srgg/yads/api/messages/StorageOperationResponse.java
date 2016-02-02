@@ -21,37 +21,31 @@ package com.github.srgg.yads.api.messages;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import org.inferred.freebuilder.FreeBuilder;
 import com.github.srgg.yads.api.message.Messages;
+import org.inferred.freebuilder.FreeBuilder;
 import org.inferred.freebuilder.shaded.com.google.common.annotations.VisibleForTesting;
 
+import javax.annotation.Nullable;
 import java.util.UUID;
 
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
-@MessageCode(Messages.MessageTypes.NodeStatus)
-@JsonDeserialize(builder = NodeStatus.Builder.class)
+@MessageCode(Messages.MessageTypes.StorageOperationResponse)
+@JsonDeserialize(builder = StorageOperationResponse.Builder.class)
 @FreeBuilder
-public interface NodeStatus extends Message {
-    @JsonProperty("type")
-    Messages.NodeType getNodeType();
+public interface StorageOperationResponse extends Message {
+    @Nullable
+    @JsonProperty("object")
+    Object getObject();
 
-    @JsonProperty("status")
-    String getStatus();
-
-    class Builder extends NodeStatus_Builder implements MessageBuilder<NodeStatus, Builder> {
+    class Builder extends StorageOperationResponse_Builder implements Message.MessageBuilder<StorageOperationResponse, StorageOperationResponse_Builder> {
         public Builder() {
             setId(UUID.randomUUID());
         }
 
         public Builder(final UUID id) {
             setId(id);
-        }
-
-        @Override
-        public NodeStatus build() {
-            return super.build();
         }
 
         @VisibleForTesting

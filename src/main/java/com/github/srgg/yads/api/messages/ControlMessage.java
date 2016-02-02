@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import org.inferred.freebuilder.FreeBuilder;
 import com.github.srgg.yads.api.message.Messages;
+import org.inferred.freebuilder.shaded.com.google.common.annotations.VisibleForTesting;
 
 import javax.annotation.Nullable;
 import java.util.EnumSet;
@@ -64,7 +65,7 @@ public interface ControlMessage extends Message {
     @Nullable
     String getPrevNode();
 
-    class Builder extends ControlMessage_Builder {
+    class Builder extends ControlMessage_Builder implements MessageBuilder<ControlMessage, ControlMessage_Builder> {
         public Builder() {
             setId(UUID.randomUUID());
         }
@@ -73,8 +74,11 @@ public interface ControlMessage extends Message {
             setId(id);
         }
 
-        @Override
-        public ControlMessage build() {
+        public <E extends Enum<E>> Builder setState(final E state) {
+            return setState(state.name());
+        }
+
+        public void smartPreBuild() {
             final LinkedList<Type> types = new LinkedList<>();
             LinkedList<Role> roles = null;
 
@@ -103,7 +107,24 @@ public interface ControlMessage extends Message {
             if (getType() == null) {
                 setType(EnumSet.copyOf(types));
             }
+        }
+
+        @Override
+        public ControlMessage build() {
+            smartPreBuild();
             return super.build();
+        }
+
+        @Override
+        public ControlMessage buildPartial() {
+            smartPreBuild();
+            return super.buildPartial();
+        }
+
+        @VisibleForTesting
+        @Override
+        public String toString() {
+            return buildPartial().toString();
         }
     }
 }

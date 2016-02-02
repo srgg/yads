@@ -19,8 +19,11 @@
  */
 package com.github.srgg.yads;
 
+import com.github.srgg.yads.api.messages.NodeStatus;
+import com.github.srgg.yads.api.messages.StorageOperationRequest;
 import org.junit.Before;
 import org.junit.FixMethodOrder;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
@@ -32,10 +35,9 @@ import org.powermock.modules.junit4.PowerMockRunner;
 import com.github.srgg.yads.api.IStorage;
 import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.ControlMessage;
-import com.github.srgg.yads.api.messages.StorageOperation;
 import com.github.srgg.yads.impl.context.StorageExecutionContext;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
-import com.github.srgg.yads.impl.api.context.OperationExecutionContext;
+import com.github.srgg.yads.impl.api.context.OperationContext;
 import com.github.srgg.yads.impl.StorageNode;
 
 import java.util.*;
@@ -50,11 +52,14 @@ import static org.mockito.Mockito.*;
 @PrepareForTest({StorageNode.class})
 @FixMethodOrder(MethodSorters.JVM)
 public class StorageNodeTest {
+    @Rule
+    public FancyTestWatcher watcher = new FancyTestWatcher();
+
     @Mock
     private CommunicationContext communicationContext;
 
     @Mock
-    private OperationExecutionContext operationContext;
+    private OperationContext operationContext;
 
     @Mock
     private IStorage storage;
@@ -62,24 +67,26 @@ public class StorageNodeTest {
     private StorageNode node;
     private StorageExecutionContext nodeContext;
 
-    private StorageOperation allOperations[] = {
-            new StorageOperation.Builder()
+    private final StorageOperationRequest[] allOperations = {
+            new StorageOperationRequest.Builder()
                     .setId(UUID.randomUUID())
                     .setSender("Anonymous")
                     .setKey("m1")
-                    .setType(StorageOperation.OperationType.Put)
+                    .setType(StorageOperationRequest.OperationType.Put)
                     .setObject("42")
                     .build(),
-            new StorageOperation.Builder()
+            new StorageOperationRequest.Builder()
                     .setId(UUID.randomUUID())
                     .setSender("Anonymous")
                     .setKey("m2")
-                    .setType(StorageOperation.OperationType.Get)
+                    .setType(StorageOperationRequest.OperationType.Get)
                     .build()
     };
 
     @Before
     public void setup() throws Exception {
+        JsonUnitInitializer.initialize();
+
         // TODO: figure out how initialization can be refactored with @InjectMocks
         final StorageNode n = new StorageNode("node1", storage);
         node = spy(n);
@@ -103,10 +110,10 @@ public class StorageNodeTest {
         verifyZeroInteractions(nodeContext, storage, node);
 
         doAnswer(invocation -> {
-                final StorageOperation op = (StorageOperation) invocation.getArguments()[0];
+                final StorageOperationRequest op = (StorageOperationRequest) invocation.getArguments()[0];
                 doReturn(op).when(operationContext).operation();
                 return operationContext;
-        }).when(nodeContext).contextFor(any(StorageOperation.class));
+        }).when(nodeContext).contextFor(any(StorageOperationRequest.class));
 
     }
 
@@ -143,7 +150,7 @@ public class StorageNodeTest {
 
         manageNode(
             new ControlMessage.Builder()
-                .setState(StorageNode.StorageState.RUNNING.name())
+                .setState(StorageNode.StorageState.RUNNING)
         );
 
         assertEquals("RUNNING", node.getState());
@@ -157,7 +164,7 @@ public class StorageNodeTest {
         // -- generate list of "inappropriate" states
         final List<String> states = new LinkedList<>();
         final EnumSet<StorageNode.StorageState> allowedStates = EnumSet.of(StorageNode.StorageState.RECOVERING,
-                StorageNode.StorageState.RUNNING);
+                StorageNode.StorageState.RECOVERED, StorageNode.StorageState.RUNNING);
 
         for (StorageNode.StorageState s : StorageNode.StorageState.values()) {
             if (!allowedStates.contains(s)) {
@@ -176,15 +183,35 @@ public class StorageNodeTest {
 
             assertEquals(s, node.getState());
 
-            for (StorageOperation op : allOperations) {
+            for (StorageOperationRequest op : allOperations) {
                 // TODO: rewrite with Exception Matcher to introduce message checking
                 try {
                     node.onStorageRequest(op);
                     fail();
-                } catch (IllegalStateException ex) {
+                } catch (IllegalStateException ignored) {
                 }
             }
         }
+    }
+
+    @Test
+    public void sendNodeStateImmediatelyInCaseOfLocalChange() throws Exception {
+        verifyZeroInteractions(storage);
+        startNodeAndVerify();
+        nodeContext.doNodeStateChange(StorageNode.StorageState.FAILED);
+
+        /**
+         * If due to whatever reason node state was changed locally,
+         * the new state should be propagated to the leader immediately
+         */
+        verify(communicationContext, after(100)).send(
+                eq(CommunicationContext.LEADER_NODE),
+                argThat( TestUtils.message(NodeStatus.class,
+                        "{sender: 'node1',"
+                            + "type: 'Storage',"
+                            + "status: 'FAILED'"
+                        + "}"))
+            );
     }
 
     @Test
@@ -194,10 +221,11 @@ public class StorageNodeTest {
 
         manageNode(
             new ControlMessage.Builder()
-                    .setState(StorageNode.StorageState.RECOVERING.name())
+                    .setPrevNode("PREV-NODE")
+                    .setState(StorageNode.StorageState.RECOVERING)
         );
 
-        for (StorageOperation op : allOperations) {
+        for (StorageOperationRequest op : allOperations) {
             node.onStorageRequest(op);
         }
 
@@ -205,10 +233,15 @@ public class StorageNodeTest {
         verify(storage, after(2000).never()).process(any());
         verifyZeroInteractions(storage);
 
+        manageNode(
+                new ControlMessage.Builder()
+                        .setState(StorageNode.StorageState.RECOVERED)
+        );
+
         // should process all previously queued operations
         manageNode(
             new ControlMessage.Builder()
-                    .setState(StorageNode.StorageState.RUNNING.name())
+                    .setState(StorageNode.StorageState.RUNNING)
         );
 
         // all the enqueued operation should be processed

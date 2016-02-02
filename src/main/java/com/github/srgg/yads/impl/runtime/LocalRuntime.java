@@ -21,22 +21,29 @@ package com.github.srgg.yads.impl.runtime;
 
 import com.github.srgg.yads.api.ActivationAware;
 import com.github.srgg.yads.api.Identifiable;
-import com.github.srgg.yads.api.messages.ControlMessage;
+import com.github.srgg.yads.api.message.Messages;
+import com.github.srgg.yads.api.messages.Message;
 import com.github.srgg.yads.impl.AbstractNode;
+import com.github.srgg.yads.impl.AbstractNodeRuntime;
 import com.github.srgg.yads.impl.MasterNode;
 import com.github.srgg.yads.impl.StorageNode;
-import com.github.srgg.yads.impl.api.context.CommunicationContext;
+import com.github.srgg.yads.impl.api.Chain;
+import com.github.srgg.yads.impl.api.context.NodeContext;
 import com.github.srgg.yads.impl.context.MasterNodeExecutionContext;
 import com.github.srgg.yads.impl.context.StorageExecutionContext;
 import com.github.srgg.yads.impl.util.InMemoryStorage;
 import com.github.srgg.yads.impl.context.communication.AbstractTransport;
 import com.github.srgg.yads.impl.context.communication.JacksonPayloadMapper;
+import com.github.srgg.yads.impl.util.MessageUtils;
+import com.github.srgg.yads.impl.util.TaggedLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.SynchronousQueue;
 
 import static com.google.common.base.Preconditions.checkState;
 
@@ -44,10 +51,8 @@ import static com.google.common.base.Preconditions.checkState;
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
 public final class LocalRuntime implements ActivationAware {
-    private static LocalTransport transport = new LocalTransport();
-    private static HashMap<String, StorageExecutionContext> nodeContexts = new HashMap<>();
-    private static ConcurrentHashMap<String, AbstractNode> nodes = new ConcurrentHashMap<>();
-    private static HashSet<String> masterIds = new HashSet<>();
+    private final Logger logger = new TaggedLogger(LoggerFactory.getLogger(LocalRuntime.class), "LocalRuntime: ");
+    private final LocalTransport transport = new LocalTransport();
 
     @Override
     public String getState() {
@@ -56,35 +61,21 @@ public final class LocalRuntime implements ActivationAware {
 
     @Override
     public void start() throws Exception {
+        logger.debug("is about to start");
         transport.start();
+        logger.debug("has been STARTED");
     }
 
     @Override
     public void stop() throws Exception {
-        shutdownAll();
+        logger.debug("is about to stop");
         transport.stop();
+        logger.debug("has been STOPPED");
     }
 
     @Override
     public String getId() {
         return "local-rt";
-    }
-
-    private static class LocalStorageExecutionContext extends StorageExecutionContext {
-        LocalStorageExecutionContext(final CommunicationContext mc, final StorageNode n) {
-            super(mc, n);
-        }
-
-        protected void doStart() {
-            super.doStart();
-            nodeContexts.put(getId(), this);
-        }
-
-        @Override
-        protected void doStop() {
-            nodeContexts.remove(getId());
-            super.doStop();
-        }
     }
 
     public static class LocalClient implements Identifiable<String> {
@@ -107,69 +98,110 @@ public final class LocalRuntime implements ActivationAware {
         }
     }
 
-    public void nodeControl(final String nodeId, final ControlMessage.Builder builder) throws Exception {
-        final ControlMessage msg = builder.build();
+    public void sendMessage(final String nodeId, final Message.MessageBuilder builder) throws Exception {
+        final Message msg = builder
+                .setSender("fake-local")
+                .build();
+
         transport.send(nodeId, msg);
+    }
+
+
+    public <M extends Message> M performRequest(final String nodeId, final Message.MessageBuilder builder) throws Exception {
+        final String senderId = UUID.randomUUID().toString();
+
+        final SynchronousQueue<Message>  messageQueue = new SynchronousQueue<>(false);
+
+        final AbstractNodeRuntime rt = new AbstractNodeRuntime(transport, null) {
+            @Override
+            public boolean onMessage(final String recipient, final Messages.MessageTypes type,
+                                     final Message message) throws Exception {
+                messageQueue.put(message);
+                return true;
+            }
+
+            @Override
+            public String getId() {
+                return senderId;
+            }
+        };
+
+        rt.stateChanged(State.STARTED.name());
+        try {
+            final Message msg = builder
+                    .setSender(senderId)
+                    .build();
+
+            transport.send(nodeId, msg);
+            //noinspection unchecked
+            return (M) messageQueue.take();
+        } finally {
+            rt.stateChanged(State.STOPPED.name());
+        }
     }
 
     public StorageNode createStorageNode(final String nodeId) throws Exception {
         final StorageNode node = new StorageNode(nodeId, new InMemoryStorage());
-        final StorageExecutionContext ctx = new LocalStorageExecutionContext(transport, node);
+        final StorageExecutionContext ctx = new StorageExecutionContext(transport, node);
         node.configure(ctx);
         node.start();
-        nodes.put(nodeId, node);
         return node;
     }
 
     public void nodeShutdown(final String nodeId) {
-        final AbstractNode node = nodes.get(nodeId);
+        final AbstractNode node = transport.getNodeById(nodeId);
         checkState(node != null, "Can't shutdown node '%s', since it doesn't exist", nodeId);
-
         node.stop();
-        masterIds.remove(nodeId);
-        nodes.remove(nodeId);
     }
 
-    private void shutdownAll() {
-        for (String nid: nodes.keySet()) {
-            nodeShutdown(nid);
-        }
-
-        assert nodeContexts.isEmpty();
-        assert nodes.isEmpty();
-    }
-
-    public static MasterNode createMasterNode(final String nodeId) throws Exception {
+    public MasterNode createMasterNode(final String nodeId) throws Exception {
         final MasterNode node = new MasterNode(nodeId);
         final MasterNodeExecutionContext ctx = new MasterNodeExecutionContext(transport, node);
         node.configure(ctx);
         node.start();
-        nodes.put(nodeId, node);
-        masterIds.add(nodeId);
         return node;
     }
 
-    public List<String> waitForCompleteChain() throws InterruptedException {
-        checkState(!masterIds.isEmpty(), "Can't wait for chain, there is no master at all");
-        final String id = masterIds.iterator().next();
-        final MasterNode node = (MasterNode) nodes.get(id);
+    public List<Chain.INodeInfo<MasterNode.NodeInfo>> waitForCompleteChain() throws InterruptedException {
+        final String id = transport.getNearestMaster();
+        checkState(id != null, "Can't wait for chain, there is no master at all");
+        final MasterNode node = (MasterNode) transport.getNodeById(id);
 
         for (;;) {
-            final int expected = nodes.size() - masterIds.size();
+            final Set<StorageExecutionContext> contexts = transport.getNodeContexts(StorageExecutionContext.class);
+            final int expected = contexts.size();
 
-            final List<String> chain = node.chain().asList();
+            final List<Chain.INodeInfo<MasterNode.NodeInfo>> chain = node.chain().asList();
             if (chain.size() == expected) {
                 return chain;
             }
-            Thread.sleep(500);
+            Thread.sleep(20);
         }
     }
 
-    public Map<String, StorageExecutionContext.NodeState> getAllStorageStates() {
-        final HashMap<String, StorageExecutionContext.NodeState> r = new HashMap<>(nodes.size());
-        for (StorageExecutionContext n: nodeContexts.values()) {
-            r.put(n.getId(), n.getNodeState());
+    public List<Chain.INodeInfo<MasterNode.NodeInfo>> waitForRunningChain() throws InterruptedException {
+        final List<Chain.INodeInfo<MasterNode.NodeInfo>> r = waitForCompleteChain();
+
+        for (boolean b = false; !b;) {
+            Thread.sleep(10);
+
+            for (Chain.INodeInfo<MasterNode.NodeInfo> ni : r) {
+                b = StorageNode.StorageState.RUNNING.name().equals(ni.state());
+                if (!b) {
+                    break;
+                }
+            }
         }
+
+        return r;
+    }
+
+
+    public Map<String, StorageExecutionContext.NodeState> getAllStorageStates() {
+        final Set<StorageExecutionContext> ctxs = transport.getNodeContexts(StorageExecutionContext.class);
+
+        final HashMap<String, StorageExecutionContext.NodeState> r = new HashMap<>(ctxs.size());
+        ctxs.forEach((ctx) -> r.put(ctx.getId(), ctx.getNodeState()));
         return r;
     }
 
@@ -178,23 +210,82 @@ public final class LocalRuntime implements ActivationAware {
 
         LocalTransport() {
             super(new JacksonPayloadMapper());
+            logger().debug("Created");
+        }
+
+        private String getMasterId() {
+            final Set<MasterNodeExecutionContext> ctxs = getNodeContexts(MasterNodeExecutionContext.class);
+            return ctxs.isEmpty() ? null : ctxs.iterator().next().getId();
+        }
+
+        protected String getLeader() {
+            return getMasterId();
+        }
+
+        protected String getNearestMaster() {
+            return getMasterId();
+        }
+
+        protected <N extends NodeContext> Set<N> getNodeContexts(final Class<N> contextClass) {
+            final HashSet<N> r = new HashSet<>();
+
+            forEach((id, h)-> {
+                if (contextClass.isInstance(h)) {
+                    r.add((N) h);
+                }
+            });
+
+            return r;
+        }
+
+        protected AbstractNode<?> getNodeById(final String nodeId) {
+            final AbstractNode<?>[] r = {null};
+            forEach((id, h) -> {
+                if (h instanceof AbstractNodeRuntime) {
+                    final AbstractNode<?> n = ((AbstractNodeRuntime) h).node();
+
+                    if (n.getId().equals(nodeId)) {
+                        r[0] = n;
+                    }
+                }
+            });
+
+            return r[0];
         }
 
         private void sendImpl(final String sender, final String recipient, final ByteBuffer bb) {
-            checkState("STARTED".equals(getState()));
+            checkState("RUNNING".equals(getState()));
 
-            final AbstractNode n = LocalRuntime.nodes.get(recipient);
-            checkState(n != null, "Unknown node with id '%s'", recipient);
+            final AbstractNodeRuntime nrt = (AbstractNodeRuntime) this.handlerById(recipient);
+            checkState(nrt != null, "Unknown recipient id:'%s'", recipient);
 
             executor.submit(() -> {
+                final ArrayList<Message> messages = new ArrayList<>(1);
                 try {
-                    onReceive(sender, recipient, bb);
+                    final int i = decode(bb, messages);
+                    assert i == -1;
                 } catch (Exception e) {
+                    // TODO: add hexdump
                     logger().error(
-                            String.format("[ERR] receive call failed: '{%s}' -> '{%s}'",
+                            String.format("[ERR] receive call failed: '%s' -> '%s'. Binary can't be decoded",
                                     sender, recipient),
                             e
-                        );
+                    );
+                }
+
+                checkState(messages.size() == 1);
+                final Message msg = messages.get(0);
+                try {
+                    onReceive(recipient, msg);
+                } catch (Exception e) {
+                    final byte msgCode = getMessageCodeFor(msg);
+                    final Messages.MessageTypes mt = Messages.MessageTypes.valueOf(msgCode);
+
+                    logger().error(
+                            MessageUtils.dumpMessage(msg, "[RECEIVE FAILED] '%s' -> '%s': %s@%s",
+                                    sender,  recipient, mt, msg.getId()),
+                            e
+                    );
                 }
             });
         }
@@ -203,9 +294,14 @@ public final class LocalRuntime implements ActivationAware {
         protected void doSend(final String sender, final String recipient, final ByteBuffer bb) throws Exception {
             switch (recipient) {
                 case LEADER_NODE:
+                    final String leaderId = getLeader();
+                    checkState(leaderId != null);
+                    sendImpl(sender, leaderId, bb);
+                    break;
+
                 case NEAREST_MASTER:
-                    checkState(!masterIds.isEmpty());
-                    final String masterId = masterIds.iterator().next();
+                    final String masterId = getNearestMaster();
+                    checkState(masterId != null);
                     sendImpl(sender, masterId, bb);
                     break;
 
@@ -219,23 +315,38 @@ public final class LocalRuntime implements ActivationAware {
 
         @Override
         public String getState() {
-            return executor == null ? "STOPPED" : "STARTED";
+            return executor == null ? "STOPPED" : "RUNNING";
         }
 
         @Override
         public void start() throws Exception {
+            logger().debug("is about to start");
+
             executor = Executors.newScheduledThreadPool(10);
+            logger().debug("has been STARTED");
         }
 
         @Override
         public void stop() throws Exception {
+            logger().debug("is about to stop");
+            final Set<AbstractNodeRuntime> ctxs = getNodeContexts(AbstractNodeRuntime.class);
+
+            for (AbstractNodeRuntime nrt: ctxs) {
+                if (nrt.node() != null) {
+                    nrt.node().stop();
+                } else {
+                    nrt.stateChanged(State.STOPPED.name());
+                }
+            }
+
             executor.shutdown();
             executor = null;
+            logger().debug("has been STOPPED");
         }
 
         @Override
         public String getId() {
-            return "local-transport";
+            return "local";
         }
     }
 

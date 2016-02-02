@@ -27,9 +27,9 @@ import com.github.srgg.yads.api.messages.ControlMessage;
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
 public interface MasterNodeContext extends NodeContext {
-    default void manageNode(ControlMessage message, String...nodeIds) throws Exception {
-        manageNode(message, Arrays.asList(nodeIds));
+    default void manageNode(ControlMessage.Builder builder, String...nodeIds) throws Exception {
+        manageNode(builder, Arrays.asList(nodeIds));
     }
 
-    void manageNode(ControlMessage message, Iterable<String> nodeIds) throws Exception;
+    void manageNode(ControlMessage.Builder builder, Iterable<String> nodeIds) throws Exception;
 }

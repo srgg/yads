@@ -19,25 +19,37 @@
  */
 package com.github.srgg.yads;
 
+import com.github.srgg.yads.api.messages.Message;
+import com.github.srgg.yads.api.messages.StorageOperationRequest;
+import com.github.srgg.yads.api.messages.StorageOperationResponse;
 import net.javacrumbs.jsonunit.core.Option;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.*;
 import com.github.srgg.yads.impl.runtime.LocalRuntime;
+import org.junit.runners.MethodSorters;
 
 import static net.javacrumbs.jsonunit.JsonAssert.assertJsonEquals;
 import static net.javacrumbs.jsonunit.JsonAssert.when;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 
 /**
  * @author Sergey Galkin <srggal at gmail dot com>
  */
+@FixMethodOrder(MethodSorters.JVM)
 public class RuntimeTest {
+    @Rule
+    public FancyTestWatcher watcher = new FancyTestWatcher();
+
     private LocalRuntime rt;
+
+
+    @BeforeClass
+    public static void setupTolerantJSON() {
+        JsonUnitInitializer.initialize();
+    }
 
     @Before
     public void initialize() throws Exception {
-        JsonUnitInitializer.initialize();
         rt = new LocalRuntime();
         rt.start();
     }
@@ -71,7 +83,7 @@ public class RuntimeTest {
         verifyStorageStates("{" +
                 "storage-1:{" +
                 "role:          ['Head', 'Tail']," +
-                "state:         'RECOVERING'," +
+                "state:         'RUNNING'," +
                 "prevNode:      null," +
                 "nextNode:      null," +
                 "lastUpdatedBy: 'master-1'" +
@@ -87,14 +99,14 @@ public class RuntimeTest {
         verifyStorageStates("{" +
                 "storage-1:{" +
                     "role:          ['Head']," +
-                    "state:         'RECOVERING'," +
+                    "state:         'RUNNING'," +
                     "prevNode:      null," +
                     "nextNode:      'storage-2'," +
                     "lastUpdatedBy: 'master-1'" +
                 "}," +
                 "storage-2:{" +
                     "role:          ['Tail']," +
-                    "state:         'RECOVERING'," +
+                    "state:         'RUNNING'," +
                     "prevNode:      'storage-1'," +
                     "nextNode:      null," +
                     "lastUpdatedBy: 'master-1'" +
@@ -105,31 +117,73 @@ public class RuntimeTest {
 
         rt.createStorageNode("storage-3");
         rt.waitForCompleteChain();
-        Thread.sleep(100);
+        Thread.sleep(300);
         verifyStorageStates("{" +
                 "storage-1:{" +
                     "role:          ['Head']," +
-                    "state:         'RECOVERING'," +
+                    "state:         'RUNNING'," +
                     "prevNode:      null," +
                     "nextNode:      'storage-2'," +
                     "lastUpdatedBy: 'master-1'" +
                 "}," +
                 "storage-2:{" +
                     "role:          ['Middle']," +
-                    "state:         'RECOVERING'," +
+                    "state:         'RUNNING'," +
                     "prevNode:      'storage-1'," +
                     "nextNode:      'storage-3'," +
                     "lastUpdatedBy: 'master-1'" +
                 "}," +
                 "storage-3: {" +
                     "role:          ['Tail']," +
-                    "state:         'RECOVERING'," +
+                    "state:         'RUNNING'," +
                     "prevNode:      'storage-2'," +
                     "nextNode:      null," +
                     "lastUpdatedBy: 'master-1'" +
                 "}" +
             "}"
         );
+    }
+
+    @Test(timeout = 60000)
+    public void checkGentleReplication() throws Exception {
+        rt.createMasterNode("master-21");
+
+        rt.createStorageNode("storage-21");
+        rt.waitForRunningChain();
+
+
+        final Message m1 = rt.performRequest("storage-21", new StorageOperationRequest.Builder()
+                .setType(StorageOperationRequest.OperationType.Put)
+                .setKey("1")
+                .setObject("42")
+        );
+
+        assertThat(m1, TestUtils.message(StorageOperationResponse.class,
+                "{sender: 'storage-21', object: null}")
+        );
+
+        final StorageOperationRequest.Builder getValueBuilder = new StorageOperationRequest.Builder()
+                .setType(StorageOperationRequest.OperationType.Get)
+                .setKey("1");
+
+        // read value to be sure in 100% it has been stored properly
+        final StorageOperationResponse m2 = rt.performRequest("storage-21", getValueBuilder);
+
+        assertEquals("42", m2.getObject());
+
+        // -- spinnup storage-2 and check that it'll be recovered properly
+        rt.createStorageNode("storage-22");
+        rt.waitForRunningChain();
+
+        final StorageOperationResponse m3 = rt.performRequest("storage-22", getValueBuilder);
+        assertEquals("42", m3.getObject());
+
+        // -- spinnup storage-3 and check that it'll be recovered properly
+        rt.createStorageNode("storage-23");
+        rt.waitForRunningChain();
+
+        final StorageOperationResponse m4 = rt.performRequest("storage-23", getValueBuilder);
+        assertEquals("42", m4.getObject());
     }
 
     private void verifyStorageStates(String expected) {
