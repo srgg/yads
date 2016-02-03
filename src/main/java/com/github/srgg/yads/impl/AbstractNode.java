@@ -22,12 +22,12 @@ package com.github.srgg.yads.impl;
 import com.github.srgg.yads.impl.util.AbstractActivationAware;
 import com.github.srgg.yads.api.Configurable;
 import com.github.srgg.yads.api.message.Messages;
-import com.github.srgg.yads.impl.api.context.NodeContext;
+import com.github.srgg.yads.impl.api.context.ExecutionContext;
 
 /**
  * @author Sergey Galkin <srggal at gmail dot com>
  */
-public abstract class AbstractNode<C extends NodeContext> extends AbstractActivationAware
+public abstract class AbstractNode<C extends ExecutionContext> extends AbstractActivationAware
         implements Configurable<C> {
 
     private final String nodeId;

@@ -26,7 +26,7 @@ import com.google.common.base.Joiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.github.srgg.yads.api.messages.NodeStatus;
-import com.github.srgg.yads.impl.api.context.NodeContext;
+import com.github.srgg.yads.impl.api.context.ExecutionContext;
 
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -40,8 +40,8 @@ import static com.google.common.base.Preconditions.checkState;
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
-public abstract class AbstractNodeRuntime<N extends AbstractNode>
-        implements CommunicationContext.MessageListener, NodeContext {
+public abstract class AbstractExecutionRuntime<N extends AbstractNode>
+        implements CommunicationContext.MessageListener, ExecutionContext {
 
     private boolean started;
 
@@ -60,7 +60,7 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
     private ScheduledFuture stateNotifyFuture;
     private ScheduledExecutorService executor;
 
-    public AbstractNodeRuntime(final CommunicationContext mc, final N n) {
+    public AbstractExecutionRuntime(final CommunicationContext mc, final N n) {
         this.messageContext = mc;
         this.node = n;
     }

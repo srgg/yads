@@ -20,11 +20,11 @@
 package com.github.srgg.yads.impl.context;
 
 import com.github.srgg.yads.api.messages.*;
-import com.github.srgg.yads.impl.AbstractNodeRuntime;
+import com.github.srgg.yads.impl.AbstractExecutionRuntime;
 import com.github.srgg.yads.impl.StorageNode;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 import com.github.srgg.yads.impl.api.context.OperationContext;
-import com.github.srgg.yads.impl.api.context.StorageNodeContext;
+import com.github.srgg.yads.impl.api.context.StorageExecutionContext;
 import com.github.srgg.yads.impl.util.MessageUtils;
 import com.github.srgg.yads.api.message.Messages;
 import com.google.common.annotations.VisibleForTesting;
@@ -38,27 +38,28 @@ import static com.google.common.base.Preconditions.checkState;
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
-public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> implements StorageNodeContext {
+public class StorageNodeExecutionContext extends AbstractExecutionRuntime<StorageNode>
+        implements StorageExecutionContext {
+
     private static final UUID LOCAL_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
     private final AtomicReference<NodeState> nodeState = new AtomicReference<>();
 
-    public StorageExecutionContext(final CommunicationContext messageContext, final StorageNode node) {
+    public StorageNodeExecutionContext(final CommunicationContext messageContext, final StorageNode node) {
         super(messageContext, node);
         logger().debug("Created");
     }
 
-
     private static class GenericOperationContext<T extends Message, R> implements OperationContext<T, R> {
         private final T operation;
-        private final StorageExecutionContext ctx;
+        private final StorageNodeExecutionContext ctx;
         private final UnsafeAcknowledge<T, R> acknowledgeOp;
 
         @FunctionalInterface
         public interface UnsafeAcknowledge<T extends Message, R> {
-            void acknowledge(StorageExecutionContext ctx, T operation, R result) throws Exception;
+            void acknowledge(StorageNodeExecutionContext ctx, T operation, R result) throws Exception;
         }
 
-        protected GenericOperationContext(final StorageExecutionContext context, final T op,
+        protected GenericOperationContext(final StorageNodeExecutionContext context, final T op,
                                           final UnsafeAcknowledge<T, R> doAck) {
             this.operation = op;
             this.ctx = context;

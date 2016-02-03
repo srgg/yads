@@ -20,7 +20,7 @@
 package com.github.srgg.yads.impl;
 
 import com.github.srgg.yads.impl.api.Chain;
-import com.github.srgg.yads.impl.api.context.MasterNodeContext;
+import com.github.srgg.yads.impl.api.context.MasterExecutionContext;
 import com.github.srgg.yads.impl.util.GenericChain;
 import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.ControlMessage;
@@ -33,7 +33,7 @@ import java.util.Map;
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
-public class MasterNode extends AbstractNode<MasterNodeContext> {
+public class MasterNode extends AbstractNode<MasterExecutionContext> {
     private final Map<String, String> nodeStates = new HashMap<>();
     private final StateAwareChain chain;
 

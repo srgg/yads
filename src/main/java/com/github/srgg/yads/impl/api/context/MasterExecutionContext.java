@@ -19,11 +19,17 @@
  */
 package com.github.srgg.yads.impl.api.context;
 
-import com.github.srgg.yads.api.Identifiable;
+import java.util.Arrays;
+
+import com.github.srgg.yads.api.messages.ControlMessage;
 
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
-public interface NodeContext extends Identifiable<String> {
-    void stateChanged(String state);
+public interface MasterExecutionContext extends ExecutionContext {
+    default void manageNode(ControlMessage.Builder builder, String...nodeIds) throws Exception {
+        manageNode(builder, Arrays.asList(nodeIds));
+    }
+
+    void manageNode(ControlMessage.Builder builder, Iterable<String> nodeIds) throws Exception;
 }

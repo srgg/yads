@@ -29,7 +29,7 @@ import java.util.Map;
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
-public interface StorageNodeContext extends NodeContext {
+public interface StorageExecutionContext extends ExecutionContext {
     OperationContext<StorageOperationRequest, Object> contextFor(StorageOperationRequest operation);
     OperationContext<RecoveryRequest, Pair<Boolean, Map<String, Object>>> contextFor(RecoveryRequest operation);
     OperationContext<RecoveryResponse, Void> contextFor(RecoveryResponse operation);

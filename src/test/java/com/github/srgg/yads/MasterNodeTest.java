@@ -29,7 +29,7 @@ import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.ControlMessage;
-import com.github.srgg.yads.impl.api.context.MasterNodeContext;
+import com.github.srgg.yads.impl.api.context.MasterExecutionContext;
 import com.github.srgg.yads.impl.MasterNode;
 
 import java.util.*;
@@ -46,7 +46,7 @@ public class MasterNodeTest {
     public FancyTestWatcher watcher = new FancyTestWatcher();
 
     @Mock
-    private MasterNodeContext nodeContext;
+    private MasterExecutionContext nodeContext;
 
     private MasterNode masterNode;
     private static ObjectMapper mapper;

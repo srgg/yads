@@ -24,13 +24,13 @@ import com.github.srgg.yads.api.Identifiable;
 import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.Message;
 import com.github.srgg.yads.impl.AbstractNode;
-import com.github.srgg.yads.impl.AbstractNodeRuntime;
+import com.github.srgg.yads.impl.AbstractExecutionRuntime;
 import com.github.srgg.yads.impl.MasterNode;
 import com.github.srgg.yads.impl.StorageNode;
 import com.github.srgg.yads.impl.api.Chain;
-import com.github.srgg.yads.impl.api.context.NodeContext;
+import com.github.srgg.yads.impl.api.context.ExecutionContext;
 import com.github.srgg.yads.impl.context.MasterNodeExecutionContext;
-import com.github.srgg.yads.impl.context.StorageExecutionContext;
+import com.github.srgg.yads.impl.context.StorageNodeExecutionContext;
 import com.github.srgg.yads.impl.util.InMemoryStorage;
 import com.github.srgg.yads.impl.context.communication.AbstractTransport;
 import com.github.srgg.yads.impl.context.communication.JacksonPayloadMapper;
@@ -114,7 +114,7 @@ public final class LocalRuntime implements ActivationAware {
 
         final SynchronousQueue<Message>  messageQueue = new SynchronousQueue<>(false);
 
-        final AbstractNodeRuntime rt = new AbstractNodeRuntime(transport, null) {
+        final AbstractExecutionRuntime rt = new AbstractExecutionRuntime(transport, null) {
             @Override
             public boolean onMessage(final String recipient, final Messages.MessageTypes type,
                                      final Message message) throws Exception {
@@ -144,7 +144,7 @@ public final class LocalRuntime implements ActivationAware {
 
     public StorageNode createStorageNode(final String nodeId) throws Exception {
         final StorageNode node = new StorageNode(nodeId, new InMemoryStorage());
-        final StorageExecutionContext ctx = new StorageExecutionContext(transport, node);
+        final StorageNodeExecutionContext ctx = new StorageNodeExecutionContext(transport, node);
         node.configure(ctx);
         node.start();
         return node;
@@ -170,7 +170,7 @@ public final class LocalRuntime implements ActivationAware {
         final MasterNode node = (MasterNode) transport.getNodeById(id);
 
         for (;;) {
-            final Set<StorageExecutionContext> contexts = transport.getNodeContexts(StorageExecutionContext.class);
+            final Set<StorageNodeExecutionContext> contexts = transport.getNodeContexts(StorageNodeExecutionContext.class);
             final int expected = contexts.size();
 
             final List<Chain.INodeInfo<MasterNode.NodeInfo>> chain = node.chain().asList();
@@ -199,10 +199,10 @@ public final class LocalRuntime implements ActivationAware {
     }
 
 
-    public Map<String, StorageExecutionContext.NodeState> getAllStorageStates() {
-        final Set<StorageExecutionContext> ctxs = transport.getNodeContexts(StorageExecutionContext.class);
+    public Map<String, StorageNodeExecutionContext.NodeState> getAllStorageStates() {
+        final Set<StorageNodeExecutionContext> ctxs = transport.getNodeContexts(StorageNodeExecutionContext.class);
 
-        final HashMap<String, StorageExecutionContext.NodeState> r = new HashMap<>(ctxs.size());
+        final HashMap<String, StorageNodeExecutionContext.NodeState> r = new HashMap<>(ctxs.size());
         ctxs.forEach((ctx) -> r.put(ctx.getId(), ctx.getNodeState()));
         return r;
     }
@@ -228,7 +228,7 @@ public final class LocalRuntime implements ActivationAware {
             return getMasterId();
         }
 
-        protected <N extends NodeContext> Set<N> getNodeContexts(final Class<N> contextClass) {
+        protected <N extends ExecutionContext> Set<N> getNodeContexts(final Class<N> contextClass) {
             final HashSet<N> r = new HashSet<>();
 
             forEach((id, h)-> {
@@ -243,8 +243,8 @@ public final class LocalRuntime implements ActivationAware {
         protected AbstractNode<?> getNodeById(final String nodeId) {
             final AbstractNode<?>[] r = {null};
             forEach((id, h) -> {
-                if (h instanceof AbstractNodeRuntime) {
-                    final AbstractNode<?> n = ((AbstractNodeRuntime) h).node();
+                if (h instanceof AbstractExecutionRuntime) {
+                    final AbstractNode<?> n = ((AbstractExecutionRuntime) h).node();
 
                     if (n.getId().equals(nodeId)) {
                         r[0] = n;
@@ -258,7 +258,7 @@ public final class LocalRuntime implements ActivationAware {
         private void sendImpl(final String sender, final String recipient, final ByteBuffer bb) {
             checkState("RUNNING".equals(getState()));
 
-            final AbstractNodeRuntime nrt = (AbstractNodeRuntime) this.handlerById(recipient);
+            final AbstractExecutionRuntime nrt = (AbstractExecutionRuntime) this.handlerById(recipient);
             checkState(nrt != null, "Unknown recipient id:'%s'", recipient);
 
             executor.submit(() -> {
@@ -331,9 +331,9 @@ public final class LocalRuntime implements ActivationAware {
         @Override
         public void stop() throws Exception {
             logger().debug("is about to stop");
-            final Set<AbstractNodeRuntime> ctxs = getNodeContexts(AbstractNodeRuntime.class);
+            final Set<AbstractExecutionRuntime> ctxs = getNodeContexts(AbstractExecutionRuntime.class);
 
-            for (AbstractNodeRuntime nrt: ctxs) {
+            for (AbstractExecutionRuntime nrt: ctxs) {
                 if (nrt.node() != null) {
                     nrt.node().stop();
                 } else {

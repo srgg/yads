@@ -20,10 +20,10 @@
 package com.github.srgg.yads.impl.context;
 
 import com.github.srgg.yads.api.messages.Message;
-import com.github.srgg.yads.impl.AbstractNodeRuntime;
+import com.github.srgg.yads.impl.AbstractExecutionRuntime;
 import com.github.srgg.yads.impl.MasterNode;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
-import com.github.srgg.yads.impl.api.context.MasterNodeContext;
+import com.github.srgg.yads.impl.api.context.MasterExecutionContext;
 import com.github.srgg.yads.impl.util.MessageUtils;
 import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.ControlMessage;
@@ -32,7 +32,8 @@ import com.github.srgg.yads.api.messages.NodeStatus;
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
-public class MasterNodeExecutionContext extends AbstractNodeRuntime<MasterNode> implements MasterNodeContext {
+public class MasterNodeExecutionContext extends AbstractExecutionRuntime<MasterNode>
+        implements MasterExecutionContext {
 
     public MasterNodeExecutionContext(final CommunicationContext messageContext, final MasterNode node) {
         super(messageContext, node);

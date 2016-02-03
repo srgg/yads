@@ -35,7 +35,7 @@ import org.powermock.modules.junit4.PowerMockRunner;
 import com.github.srgg.yads.api.IStorage;
 import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.ControlMessage;
-import com.github.srgg.yads.impl.context.StorageExecutionContext;
+import com.github.srgg.yads.impl.context.StorageNodeExecutionContext;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 import com.github.srgg.yads.impl.api.context.OperationContext;
 import com.github.srgg.yads.impl.StorageNode;
@@ -65,7 +65,7 @@ public class StorageNodeTest {
     private IStorage storage;
 
     private StorageNode node;
-    private StorageExecutionContext nodeContext;
+    private StorageNodeExecutionContext nodeContext;
 
     private final StorageOperationRequest[] allOperations = {
             new StorageOperationRequest.Builder()
@@ -91,7 +91,7 @@ public class StorageNodeTest {
         final StorageNode n = new StorageNode("node1", storage);
         node = spy(n);
 
-        nodeContext = new StorageExecutionContext(communicationContext, node);
+        nodeContext = new StorageNodeExecutionContext(communicationContext, node);
         nodeContext = spy(nodeContext);
         n.configure(nodeContext);
         node.configure(nodeContext);
