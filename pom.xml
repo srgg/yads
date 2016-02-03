@@ -75,6 +75,12 @@
                         <groupId>org.eluder.coveralls</groupId>
                         <artifactId>coveralls-maven-plugin</artifactId>
                         <version>4.1.0</version>
+                        <configuration>
+                            <failOnServiceError>true</failOnServiceError>
+                            <sourceDirectories>
+                                <sourceDirectory>${basedir}/target/generated-sources</sourceDirectory>
+                            </sourceDirectories>
+                        </configuration>
                     </plugin>
                 </plugins>
             </build>
@@ -254,8 +260,8 @@
                 <configuration>
                     <source>${java.sdk.version}</source>
                     <target>${java.sdk.version}</target>
-                    <!--<useIncrementalCompilation>false</useIncrementalCompilation>-->
-                    <!--<compilerArgument>-proc:none</compilerArgument>-->
+                    <useIncrementalCompilation>false</useIncrementalCompilation>
+                    <compilerArgument>-proc:none</compilerArgument>
                 </configuration>
             </plugin>
 
@@ -295,29 +301,48 @@
                     </signature>
                 </configuration>
             </plugin>
-            <!--<plugin>-->
-                <!--<groupId>org.bsc.maven</groupId>-->
-                <!--<artifactId>maven-processor-plugin</artifactId>-->
-                <!--<version>3.1.0-beta1</version>-->
-                <!--<executions>-->
-                    <!--<execution>-->
-                        <!--<id>process</id>-->
-                        <!--<goals>-->
-                            <!--<goal>process</goal>-->
-                        <!--</goals>-->
-                        <!--<phase>process-sources</phase>-->
-                    <!--</execution>-->
-                <!--</executions>-->
-                <!--<configuration>-->
-                    <!--<additionalSourceDirectories>-->
-                        <!--<additionalSourceDirectory>target/generated-sources</additionalSourceDirectory>-->
-                    <!--</additionalSourceDirectories>-->
-                    <!--<processors>-->
-                        <!--<processor>org.inferred.freebuilder.processor.Processor</processor>-->
-                    <!--</processors>-->
-                    <!--<outputDirectory>target/generated-sources</outputDirectory>-->
-                <!--</configuration>-->
-            <!--</plugin>-->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>1.8</version>
+                <executions>
+                    <execution>
+                        <id>add-gen-source</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${basedir}/target/generated-sources</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.bsc.maven</groupId>
+                <artifactId>maven-processor-plugin</artifactId>
+                <version>3.1.0-beta1</version>
+                <executions>
+                    <execution>
+                        <id>process</id>
+                        <goals>
+                            <goal>process</goal>
+                        </goals>
+                        <phase>process-sources</phase>
+                    </execution>
+                </executions>
+                <configuration>
+                    <additionalSourceDirectories>
+                        <additionalSourceDirectory>target/generated-sources</additionalSourceDirectory>
+                    </additionalSourceDirectories>
+                    <processors>
+                        <processor>org.inferred.freebuilder.processor.Processor</processor>
+                    </processors>
+                    <outputDirectory>target/generated-sources</outputDirectory>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>
