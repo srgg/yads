@@ -22,11 +22,13 @@ package com.github.srgg.yads.impl;
 import com.github.srgg.yads.api.messages.Message;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 import com.github.srgg.yads.impl.util.TaggedLogger;
+import com.google.common.base.Joiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.github.srgg.yads.api.messages.NodeStatus;
 import com.github.srgg.yads.impl.api.context.NodeContext;
 
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -115,6 +117,19 @@ public abstract class AbstractNodeRuntime<N extends AbstractNode>
         }
 
         executor.shutdown();
+        try {
+            executor.awaitTermination(2, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            logger().debug("Got InterruptedException while waiting for executor termination");
+        }
+
+        if (!executor.isTerminated()) {
+            final List<Runnable> pendingTasks = executor.shutdownNow();
+            logger().warn("List of pending tasks that weren't stopped:\n\t{}",
+                    Joiner.on("\n\t").join(pendingTasks));
+        }
+
+        executor = null;
         messageContext.unregisterHandler(this);
         started = false;
         logger().info("has been STOPPED");
