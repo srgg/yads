@@ -57,43 +57,172 @@
         <license.licenceFile>${basedir}/LICENSE</license.licenceFile>
     </properties>
 
+    <profiles>
+        <profile>
+            <id>ci</id>
+            <!-- To speedup builds, it should be no static checks on CI by default -->
+
+            <activation>
+                <property>
+                    <name>env.CI</name>
+                    <value>true</value>
+                </property>
+            </activation>
+
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.eluder.coveralls</groupId>
+                        <artifactId>coveralls-maven-plugin</artifactId>
+                        <version>4.1.0</version>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>static-checks</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>license-maven-plugin</artifactId>
+                        <version>1.8</version>
+                        <configuration>
+                            <failOnMissingHeader>true</failOnMissingHeader>
+
+                            <licenseName>apache_v2</licenseName>
+                            <addJavaLicenseAfterPackage>false</addJavaLicenseAfterPackage>
+                            <processStartTag>&#8291;&#8203;</processStartTag>
+                            <processEndTag>&#8203;&#8291;</processEndTag>
+                            <sectionDelimiter>&#8291;&#8291;</sectionDelimiter>
+
+                            <extraExtensions>
+                                <proto>java</proto>
+                            </extraExtensions>
+
+                            <roots>
+                                <root>${project.basedir}/src</root>
+                            </roots>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>create-license-list</id>
+                                <goals>
+                                    <goal>aggregate-add-third-party</goal>
+                                </goals>
+                                <phase>generate-resources</phase>
+                            </execution>
+                            <execution>
+                                <id>check-license-header</id>
+                                <goals>
+                                    <goal>check-file-header</goal>
+                                </goals>
+                                <phase>prepare-package</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>findbugs-maven-plugin</artifactId>
+                        <version>3.0.3</version>
+                        <executions>
+                            <execution>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-pmd-plugin</artifactId>
+                        <version>3.6</version>
+                        <configuration>
+                            <targetJdk>${java.sdk.version}</targetJdk>
+                            <verbose>true</verbose>
+                            <excludeRoots>
+                                <excludeRoot>target/generated-sources</excludeRoot>
+                            </excludeRoots>
+                            <linkXRef>false</linkXRef>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-checkstyle-plugin</artifactId>
+                        <version>2.17</version>
+                        <configuration>
+                            <includeTestSourceDirectory>false</includeTestSourceDirectory>
+                            <suppressionsLocation>${basedir}/src/checkstyle-suppressions.xml</suppressionsLocation>
+                            <headerLocation>${license.licenceFile}</headerLocation>
+
+                            <encoding>UTF-8</encoding>
+                            <consoleOutput>true</consoleOutput>
+                            <failsOnError>true</failsOnError>
+                            <linkXRef>false</linkXRef>
+                            <sourceDirectory>${project.build.sourceDirectory}</sourceDirectory>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!--<plugin>-->
+                    <!--<groupId>org.codehaus.mojo</groupId>-->
+                    <!--<artifactId>codenarc-maven-plugin</artifactId>-->
+                    <!--<version>0.22-1</version>-->
+                    <!--<configuration>-->
+                    <!--<report>console</report>-->
+                    <!--<maxPriority1Violations>0</maxPriority1Violations>-->
+                    <!--<maxPriority2Violations>0</maxPriority2Violations>-->
+                    <!--<maxPriority3Violations>0</maxPriority3Violations>-->
+                    <!--</configuration>-->
+                    <!--<executions>-->
+                    <!--<execution>-->
+                    <!--<phase>prepare-package</phase>-->
+                    <!--<goals>-->
+                    <!--<goal>codenarc</goal>-->
+                    <!--</goals>-->
+                    <!--</execution>-->
+                    <!--</executions>-->
+                    <!--</plugin>-->
+
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
     <build>
         <plugins>
             <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>license-maven-plugin</artifactId>
-                <version>1.8</version>
-                <configuration>
-                    <failOnMissingHeader>true</failOnMissingHeader>
-
-                    <licenseName>apache_v2</licenseName>
-                    <addJavaLicenseAfterPackage>false</addJavaLicenseAfterPackage>
-                    <processStartTag>&#8291;&#8203;</processStartTag>
-                    <processEndTag>&#8203;&#8291;</processEndTag>
-                    <sectionDelimiter>&#8291;&#8291;</sectionDelimiter>
-
-                    <extraExtensions>
-                        <proto>java</proto>
-                    </extraExtensions>
-
-                    <roots>
-                        <root>${project.basedir}/src</root>
-                    </roots>
-                </configuration>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.7.5.201505241946</version>
                 <executions>
                     <execution>
-                        <id>create-license-list</id>
+                        <id>prepare-agent</id>
                         <goals>
-                            <goal>aggregate-add-third-party</goal>
+                            <goal>prepare-agent</goal>
                         </goals>
-                        <phase>generate-resources</phase>
-                    </execution>
-                    <execution>
-                        <id>check-license-header</id>
-                        <goals>
-                            <goal>check-file-header</goal>
-                        </goals>
-                        <phase>prepare-package</phase>
                     </execution>
                 </executions>
             </plugin>
@@ -117,88 +246,6 @@
                     </execution>
                 </executions>
             </plugin>
-
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>findbugs-maven-plugin</artifactId>
-                <version>3.0.3</version>
-                <executions>
-                    <execution>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-pmd-plugin</artifactId>
-                <version>3.6</version>
-                <configuration>
-                    <targetJdk>${java.sdk.version}</targetJdk>
-                    <verbose>true</verbose>
-                    <excludeRoots>
-                        <excludeRoot>target/generated-sources</excludeRoot>
-                    </excludeRoots>
-                    <linkXRef>false</linkXRef>
-                </configuration>
-                <executions>
-                    <execution>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-checkstyle-plugin</artifactId>
-                <version>2.17</version>
-                <configuration>
-                    <includeTestSourceDirectory>false</includeTestSourceDirectory>
-                    <suppressionsLocation>${basedir}/src/checkstyle-suppressions.xml</suppressionsLocation>
-                    <headerLocation>${license.licenceFile}</headerLocation>
-
-                    <encoding>UTF-8</encoding>
-                    <consoleOutput>true</consoleOutput>
-                    <failsOnError>true</failsOnError>
-                    <linkXRef>false</linkXRef>
-                    <sourceDirectory>${project.build.sourceDirectory}</sourceDirectory>
-                </configuration>
-                <executions>
-                    <execution>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-
-
-            <!--<plugin>-->
-            <!--<groupId>org.codehaus.mojo</groupId>-->
-            <!--<artifactId>codenarc-maven-plugin</artifactId>-->
-            <!--<version>0.22-1</version>-->
-            <!--<configuration>-->
-            <!--<report>console</report>-->
-            <!--<maxPriority1Violations>0</maxPriority1Violations>-->
-            <!--<maxPriority2Violations>0</maxPriority2Violations>-->
-            <!--<maxPriority3Violations>0</maxPriority3Violations>-->
-            <!--</configuration>-->
-            <!--<executions>-->
-            <!--<execution>-->
-            <!--<phase>prepare-package</phase>-->
-            <!--<goals>-->
-            <!--<goal>codenarc</goal>-->
-            <!--</goals>-->
-            <!--</execution>-->
-            <!--</executions>-->
-            <!--</plugin>-->
 
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
