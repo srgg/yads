@@ -94,7 +94,7 @@ public class RuntimeTest {
 
         rt.createStorageNode("storage-2");
         rt.waitForCompleteChain();
-        Thread.sleep(300);
+        Thread.sleep(100);
 
         verifyStorageStates("{" +
                 "storage-1:{" +
@@ -117,7 +117,7 @@ public class RuntimeTest {
 
         rt.createStorageNode("storage-3");
         rt.waitForCompleteChain();
-        Thread.sleep(400);
+        Thread.sleep(300);
         verifyStorageStates("{" +
                 "storage-1:{" +
                     "role:          ['Head']," +

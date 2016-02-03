@@ -36,7 +36,6 @@ import com.github.srgg.yads.impl.context.communication.AbstractTransport;
 import com.github.srgg.yads.impl.context.communication.JacksonPayloadMapper;
 import com.github.srgg.yads.impl.util.MessageUtils;
 import com.github.srgg.yads.impl.util.TaggedLogger;
-import com.google.common.base.Joiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +44,6 @@ import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Preconditions.checkState;
 
@@ -342,18 +340,7 @@ public final class LocalRuntime implements ActivationAware {
             }
 
             executor.shutdown();
-            try {
-                executor.awaitTermination(2, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                logger().debug("Got InterruptedException while waiting for executor termination");
-            }
-
-            if (!executor.isTerminated()) {
-                final List<Runnable> pendingTasks = executor.shutdownNow();
-                logger().warn("List of pending tasks that weren't stopped:\n\t{}",
-                        Joiner.on("\n\t").join(pendingTasks));
-            }
-
+            executor = null;
             logger().debug("has been STOPPED");
         }
 
