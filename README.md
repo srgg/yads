@@ -1,6 +1,5 @@
-# yads
+# yads [![License](http://img.shields.io/:license-Apache%202-red.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 Yet another distributed storage
-[![License](http://img.shields.io/:license-Apache%202-red.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 master branch:
 [![Build Status](https://travis-ci.org/srgg/yads.svg?branch=master)](https://travis-ci.org/srgg/yads) 
