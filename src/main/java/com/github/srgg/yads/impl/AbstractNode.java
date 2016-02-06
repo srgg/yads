@@ -19,16 +19,21 @@
  */
 package com.github.srgg.yads.impl;
 
-import com.github.srgg.yads.impl.util.AbstractActivationAware;
+import com.github.srgg.yads.api.ActivationAware;
+import com.github.srgg.yads.impl.api.context.Subscribe;
 import com.github.srgg.yads.api.Configurable;
 import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.impl.api.context.ExecutionContext;
+import com.github.srgg.yads.impl.util.TaggedLogger;
+import com.google.common.annotations.VisibleForTesting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author Sergey Galkin <srggal at gmail dot com>
  */
-public abstract class AbstractNode<C extends ExecutionContext> extends AbstractActivationAware
-        implements Configurable<C> {
+public abstract class AbstractNode<C extends ExecutionContext> implements ActivationAware, Configurable<C> {
+    private final Logger logger;
 
     private final String nodeId;
 
@@ -36,9 +41,13 @@ public abstract class AbstractNode<C extends ExecutionContext> extends AbstractA
     private final Messages.NodeType nodeType;
 
     protected AbstractNode(final String id, final Messages.NodeType type) {
-        super("Node '%s': ", id);
         this.nodeId = id;
         this.nodeType = type;
+        logger = new TaggedLogger(LoggerFactory.getLogger(getClass()), String.format("Node '%s': ", id));
+    }
+
+    protected final Logger logger() {
+        return logger;
     }
 
     protected final C context() {
@@ -55,24 +64,36 @@ public abstract class AbstractNode<C extends ExecutionContext> extends AbstractA
     }
 
     @Override
+    public final void start() {
+        logger().debug("is about to start");
+        doStart();
+        setState(State.STARTED.name());
+        logger().info("has been STARTED");
+    }
+
+    @Override
+    public final void stop() {
+        logger().debug("is about to stop");
+        setState(State.STOPPED.name());
+        doStop();
+        logger().info("has been STOPPED");
+    }
+
+    protected void doStart() {
+    }
+
+    protected void doStop() {
+    }
+
+    @Override
     public void configure(final C ctx) throws Exception {
         this.context = ctx;
         logger().debug("Configured");
     }
 
-    @Override
-    protected void doStop() {
-        this.context = null;
-    }
-
-    @Override
-    protected void onStateChanged(final String old, final String current) {
-        super.onStateChanged(old, current);
-        final C ctx = context();
-        if (ctx != null) {
-            // propagate state change to the context
-            context().stateChanged(current);
-        }
+    @Subscribe
+    public void onStateChanged(final String old, final String current) {
+        logger().debug("[STATE] changed '{}' -> '{}'", old, current);
     }
 
     /**
@@ -83,7 +104,13 @@ public abstract class AbstractNode<C extends ExecutionContext> extends AbstractA
      * AbstractNodeRuntime being placed in the separate package can access the only public methods :(
      * (later it might be refactored by using Factories and other Java patterns that hides such visibility issues)
      */
+    @VisibleForTesting
     public final String setState(final String newState) throws IllegalStateException {
-        return super.setState(newState);
+        return context().changeState(newState);
+    }
+
+    @Override
+    public String getState() {
+        return context().getState();
     }
 }

@@ -209,12 +209,12 @@ public class GenericChain<E> extends GenericSink<GenericChain.ChainListener<E>>
         tail = nv;
         nv.addRole(ControlMessage.Role.Tail);
 
-        checkLinerity(nv);
+        checkLinearity(nv);
         fireNodeChange(ChainListener.ActionType.NodeAdded, nv, oldTail, null);
         return this;
     }
 
-    private synchronized void checkLinerity(final NodeVertex<E> vertex) {
+    private synchronized void checkLinearity(final NodeVertex<E> vertex) {
         final Set<DefaultEdge> incoming = theChain.incomingEdgesOf(vertex);
         final Set<DefaultEdge> outgoing = theChain.outgoingEdgesOf(vertex);
 
@@ -249,7 +249,7 @@ public class GenericChain<E> extends GenericSink<GenericChain.ChainListener<E>>
     protected synchronized Chain.INodeInfo<E> removeNode(final String nodeId, final String state) throws Exception {
         final NodeVertex<E> nv = vertexByNodeId(nodeId);
         checkArgument(nv != null, "Can't remove '%s' node, since it is not in the chain", nodeId);
-        checkLinerity(nv);
+        checkLinearity(nv);
         nv.setState(state);
 
         NodeVertex<E> next = null, prev = null;
@@ -306,11 +306,11 @@ public class GenericChain<E> extends GenericSink<GenericChain.ChainListener<E>>
         }
 
         if (prev != null) {
-            checkLinerity(prev);
+            checkLinearity(prev);
         }
 
         if (next != null) {
-            checkLinerity(next);
+            checkLinearity(next);
         }
 
         fireNodeChange(ChainListener.ActionType.NodeRemoved, nv, prev, next);
@@ -357,7 +357,7 @@ public class GenericChain<E> extends GenericSink<GenericChain.ChainListener<E>>
 
         while (iterator.hasNext()) {
             final NodeVertex<E> n = iterator.next();
-            checkLinerity(n);
+            checkLinearity(n);
             result.add(n);
         }
 

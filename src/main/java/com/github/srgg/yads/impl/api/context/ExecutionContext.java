@@ -25,5 +25,6 @@ import com.github.srgg.yads.api.Identifiable;
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
 public interface ExecutionContext extends Identifiable<String> {
-    void stateChanged(String state);
+    String changeState(String newState);
+    String getState();
 }

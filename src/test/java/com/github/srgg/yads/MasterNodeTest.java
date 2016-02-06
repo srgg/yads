@@ -47,6 +47,7 @@ public class MasterNodeTest {
 
     @Mock
     private MasterExecutionContext nodeContext;
+    private String nodeState = "NEW";
 
     private MasterNode masterNode;
     private static ObjectMapper mapper;
@@ -62,17 +63,24 @@ public class MasterNodeTest {
         masterNode.configure(nodeContext);
         masterNode = spy(masterNode);
 
+        doAnswer(invocation -> nodeState).when(nodeContext).getState();
+
+        doAnswer(invocation -> nodeState = (String)invocation.getArguments()[0])
+        .when(nodeContext).changeState(anyString());
+
         verifyZeroInteractions(nodeContext, masterNode);
         assertEquals("master-1", masterNode.getId());
         assertEquals("NEW", masterNode.getState());
+        verify(nodeContext).getState();
 
         //verify(masterNode, atLeastOnce()).getId();
         //verify(masterNode).getState();
 
 
         masterNode.start();
-        verify(nodeContext).stateChanged("STARTED");
+        verify(nodeContext).changeState("STARTED");
         assertEquals("STARTED", masterNode.getState());
+        verify(nodeContext, times(2)).getState();
 
         verifyZeroInteractions(nodeContext);
     }

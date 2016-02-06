@@ -29,6 +29,7 @@ import com.github.srgg.yads.impl.MasterNode;
 import com.github.srgg.yads.impl.StorageNode;
 import com.github.srgg.yads.impl.api.Chain;
 import com.github.srgg.yads.impl.api.context.ExecutionContext;
+import com.github.srgg.yads.impl.api.context.StorageExecutionContext.StorageState;
 import com.github.srgg.yads.impl.context.MasterNodeExecutionContext;
 import com.github.srgg.yads.impl.context.StorageNodeExecutionContext;
 import com.github.srgg.yads.impl.util.InMemoryStorage;
@@ -188,7 +189,7 @@ public final class LocalRuntime implements ActivationAware {
             Thread.sleep(10);
 
             for (Chain.INodeInfo<MasterNode.NodeInfo> ni : r) {
-                b = StorageNode.StorageState.RUNNING.name().equals(ni.state());
+                b = StorageState.RUNNING.name().equals(ni.state());
                 if (!b) {
                     break;
                 }
@@ -200,10 +201,10 @@ public final class LocalRuntime implements ActivationAware {
 
 
     public Map<String, StorageNodeExecutionContext.NodeState> getAllStorageStates() {
-        final Set<StorageNodeExecutionContext> ctxs = transport.getNodeContexts(StorageNodeExecutionContext.class);
+        final Set<StorageNodeExecutionContext> contexts = transport.getNodeContexts(StorageNodeExecutionContext.class);
 
-        final HashMap<String, StorageNodeExecutionContext.NodeState> r = new HashMap<>(ctxs.size());
-        ctxs.forEach((ctx) -> r.put(ctx.getId(), ctx.getNodeState()));
+        final HashMap<String, StorageNodeExecutionContext.NodeState> r = new HashMap<>(contexts.size());
+        contexts.forEach((ctx) -> r.put(ctx.getId(), ctx.getNodeState()));
         return r;
     }
 
@@ -216,8 +217,8 @@ public final class LocalRuntime implements ActivationAware {
         }
 
         private String getMasterId() {
-            final Set<MasterNodeExecutionContext> ctxs = getNodeContexts(MasterNodeExecutionContext.class);
-            return ctxs.isEmpty() ? null : ctxs.iterator().next().getId();
+            final Set<MasterNodeExecutionContext> contexts = getNodeContexts(MasterNodeExecutionContext.class);
+            return contexts.isEmpty() ? null : contexts.iterator().next().getId();
         }
 
         protected String getLeader() {
@@ -331,9 +332,9 @@ public final class LocalRuntime implements ActivationAware {
         @Override
         public void stop() throws Exception {
             logger().debug("is about to stop");
-            final Set<AbstractExecutionRuntime> ctxs = getNodeContexts(AbstractExecutionRuntime.class);
+            final Set<AbstractExecutionRuntime> contexts = getNodeContexts(AbstractExecutionRuntime.class);
 
-            for (AbstractExecutionRuntime nrt: ctxs) {
+            for (AbstractExecutionRuntime nrt: contexts) {
                 if (nrt.node() != null) {
                     nrt.node().stop();
                 } else {

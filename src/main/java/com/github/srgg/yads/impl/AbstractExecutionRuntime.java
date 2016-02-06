@@ -19,6 +19,7 @@
  */
 package com.github.srgg.yads.impl;
 
+import com.github.srgg.yads.api.ActivationAware;
 import com.github.srgg.yads.api.messages.Message;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 import com.github.srgg.yads.impl.util.TaggedLogger;
@@ -28,7 +29,7 @@ import org.slf4j.LoggerFactory;
 import com.github.srgg.yads.api.messages.NodeStatus;
 import com.github.srgg.yads.impl.api.context.ExecutionContext;
 
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -38,7 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.google.common.base.Preconditions.checkState;
 
 /**
- *  @author Sergey Galkin <srggal at gmail dot com>
+ * @author Sergey Galkin <srggal at gmail dot com>
  */
 public abstract class AbstractExecutionRuntime<N extends AbstractNode>
         implements CommunicationContext.MessageListener, ExecutionContext {
@@ -52,15 +53,18 @@ public abstract class AbstractExecutionRuntime<N extends AbstractNode>
         }
     };
 
+    private final Map<String, Set<String>> allowedTransitions;
+
     private final CommunicationContext messageContext;
     private final N node;
-    private final AtomicReference<String> state = new AtomicReference<>();
+    private final AtomicReference<String> state = new AtomicReference<>("NEW");
 
     private int statusNotificationPeriod = 10;
     private ScheduledFuture stateNotifyFuture;
     private ScheduledExecutorService executor;
 
     public AbstractExecutionRuntime(final CommunicationContext mc, final N n) {
+        allowedTransitions = createTransitions();
         this.messageContext = mc;
         this.node = n;
     }
@@ -83,7 +87,7 @@ public abstract class AbstractExecutionRuntime<N extends AbstractNode>
     }
 
     protected final <M extends Message> M sendMessage(final String recipient,
-                                     final Message.MessageBuilder<M, ?> builder) throws Exception {
+                                                      final Message.MessageBuilder<M, ?> builder) throws Exception {
 
         final Object b = builder.setSender(getId());
 
@@ -170,6 +174,35 @@ public abstract class AbstractExecutionRuntime<N extends AbstractNode>
     }
 
     @Override
+    public String changeState(final String newState) {
+        if ("NEW".equals(newState)) {
+            throw new IllegalStateException("Can't change state to 'NEW'");
+        }
+
+        for (;;) {
+            final String s = state.get();
+            if (newState.equals(s)) {
+                throwWrongStateTransitions(s, newState);
+            }
+
+            final Set<String> availableTransitions = allowedTransitions.get(s);
+            if (!availableTransitions.contains(newState)) {
+                throwWrongStateTransitions(s, newState);
+            }
+
+            if (state.compareAndSet(s, newState)) {
+                stateChanged(newState);
+                node().onStateChanged(s, newState);
+                return s;
+            }
+        }
+    }
+
+    @Override
+    public String getState() {
+        return state.get();
+    }
+
     public void stateChanged(final String st) {
         switch (st) {
             case "STARTED":
@@ -186,5 +219,80 @@ public abstract class AbstractExecutionRuntime<N extends AbstractNode>
                 // nothing to do
         }
         this.state.set(st);
+    }
+
+    protected static void throwWrongStateTransitions(final String from, final String to) throws IllegalStateException {
+        throw new IllegalStateException(String.format("Can't change getState from '%s' to '%s'.", from, to));
+    }
+
+    protected Map<String, Set<String>> createTransitions() {
+        return TransitionMatrixBuilder.create()
+                .add(ActivationAware.State.NEW, ActivationAware.State.STARTED, ActivationAware.State.FAILED)
+                .add(ActivationAware.State.STARTED, ActivationAware.State.RUNNING, ActivationAware.State.FAILED, ActivationAware.State.STOPPED)
+                .add(ActivationAware.State.STOPPED, ActivationAware.State.STARTED, ActivationAware.State.FAILED)
+                .add(ActivationAware.State.FAILED, ActivationAware.State.STOPPED)
+                .add(ActivationAware.State.RUNNING, ActivationAware.State.FAILED, ActivationAware.State.STOPPED)
+                .build();
+    }
+
+    protected static class TransitionMatrixBuilder {
+        private Map<String, Set<String>> matrix;
+
+        public TransitionMatrixBuilder() {
+            this(new HashMap<>());
+        }
+
+        public TransitionMatrixBuilder(final Map<String, Set<String>> m) {
+            this.matrix = m;
+        }
+
+        @SafeVarargs
+        private static <E extends Enum<E>> Set<String> enumAsStringSet(final E... values) {
+            if (values.length == 0) {
+                //noinspection unchecked
+                return Collections.EMPTY_SET;
+            }
+
+            final ArrayList<String> strings = new ArrayList<>(values.length);
+            for (E e : values) {
+                strings.add(e.name());
+            }
+
+            return new HashSet<>(strings);
+        }
+
+        @SafeVarargs
+        public final <E extends Enum<E>> TransitionMatrixBuilder add(final E state, final E... transitions) {
+            final Set<String> existingTransitions = matrix.get(state.name());
+
+            if (existingTransitions == null) {
+                matrix.put(state.name(), enumAsStringSet(transitions));
+            } else {
+                existingTransitions.addAll(enumAsStringSet(transitions));
+            }
+            return this;
+        }
+
+        @SafeVarargs
+        public final <E extends Enum<E>> TransitionMatrixBuilder replace(final E state, final E... transitions) {
+            matrix.put(state.name(), enumAsStringSet(transitions));
+            return this;
+        }
+
+        public Map<String, Set<String>> build() {
+            try {
+                return matrix;
+            } finally {
+                matrix = null;
+            }
+        }
+
+        public static TransitionMatrixBuilder create() {
+            return new TransitionMatrixBuilder();
+        }
+
+        public static TransitionMatrixBuilder create(final Map<String, Set<String>> matrix) {
+            return new TransitionMatrixBuilder(matrix);
+        }
     }
 }

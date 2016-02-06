@@ -117,7 +117,7 @@ public class StorageNodeExecutionContext extends AbstractExecutionRuntime<Storag
                 logger().info(MessageUtils.dumpMessage(op,
                         "[RECOVERY-COMPLETE:%s]  '%s'...", op.getSender(), op.getId().toString()));
 
-                doNodeStateChange(StorageNode.StorageState.RECOVERED);
+                doNodeStateChange(StorageState.RECOVERED);
             }
         });
     }
@@ -128,7 +128,7 @@ public class StorageNodeExecutionContext extends AbstractExecutionRuntime<Storag
                              final Message message) throws Exception {
 
         final NodeState ns = nodeState.get();
-        final StorageNode.StorageState state = ns != null ? ns.getState() : null;
+        final StorageState state = ns != null ? ns.getState() : null;
 
         switch (type) {
             case ControlMessage:
@@ -143,7 +143,7 @@ public class StorageNodeExecutionContext extends AbstractExecutionRuntime<Storag
 
             case RecoveryRequest:
                 final RecoveryRequest rrm = (RecoveryRequest) message;
-                if (StorageNode.StorageState.RUNNING.equals(state)) {
+                if (StorageState.RUNNING.equals(state)) {
                     logger().info(MessageUtils.dumpMessage(message,
                             "[RECOVERY-REQ:%s]  '%s'...", rrm.getSender(), rrm.getId().toString()));
 
@@ -157,7 +157,7 @@ public class StorageNodeExecutionContext extends AbstractExecutionRuntime<Storag
 
             case RecoveryResponse:
                 final RecoveryResponse rrspm = (RecoveryResponse) message;
-                if (StorageNode.StorageState.RECOVERING.equals(state)) {
+                if (StorageState.RECOVERING.equals(state)) {
                     node().onRecoveryResponse(rrspm);
                 } else {
                     logger().warn("[RECOVERY-RESP:{}]  WILL BE IGNORED due to the inappropriate node state ('{}')."
@@ -233,7 +233,7 @@ public class StorageNodeExecutionContext extends AbstractExecutionRuntime<Storag
         }
 
         if (cm.getType().contains(ControlMessage.Type.SetState)) {
-            ns.state = StorageNode.StorageState.valueOf(cm.getState());
+            ns.state = StorageState.valueOf(cm.getState());
             stateChanged = true;
         } else if (old != null) {
             ns.state = old.state;
@@ -265,7 +265,7 @@ public class StorageNodeExecutionContext extends AbstractExecutionRuntime<Storag
     public static class NodeState {
         private UUID id;
         private EnumSet<ControlMessage.Role> role;
-        private StorageNode.StorageState state;
+        private StorageState state;
         private String nextNode;
         private String prevNode;
         private String lastUpdatedBy;
@@ -279,7 +279,7 @@ public class StorageNodeExecutionContext extends AbstractExecutionRuntime<Storag
             return role;
         }
 
-        public StorageNode.StorageState getState() {
+        public StorageState getState() {
             return state;
         }
 
@@ -327,12 +327,12 @@ public class StorageNodeExecutionContext extends AbstractExecutionRuntime<Storag
             );
         } catch (Exception e) {
             logger().error(String.format("Failed to start recovery from '%s'", recoverySource), e);
-            doNodeStateChange(StorageNode.StorageState.FAILED);
+            doNodeStateChange(StorageState.FAILED);
         }
     }
 
     @VisibleForTesting
-    public void doNodeStateChange(final StorageNode.StorageState state) {
+    public void doNodeStateChange(final StorageState state) {
         final ControlMessage cm =  new ControlMessage.Builder()
                 .setState(state)
                 .setId(LOCAL_ID)
@@ -341,5 +341,14 @@ public class StorageNodeExecutionContext extends AbstractExecutionRuntime<Storag
 
         updateNodeState(cm);
         notifyAboutNodeStatus();
+    }
+
+    protected Map<String, Set<String>> createTransitions() {
+        return TransitionMatrixBuilder.create(super.createTransitions())
+                .add(StorageState.STARTED, StorageState.RECOVERING)
+                .add(StorageState.FAILED, StorageState.RECOVERING)
+                .add(StorageState.RECOVERED, StorageState.RUNNING, StorageState.FAILED, StorageState.STOPPED)
+                .add(StorageState.RECOVERING, StorageState.RECOVERED, StorageState.FAILED, StorageState.STOPPED)
+                .build();
     }
 }

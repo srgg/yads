@@ -21,6 +21,7 @@ package com.github.srgg.yads.impl;
 
 import com.github.srgg.yads.impl.api.Chain;
 import com.github.srgg.yads.impl.api.context.MasterExecutionContext;
+import com.github.srgg.yads.impl.api.context.StorageExecutionContext.StorageState;
 import com.github.srgg.yads.impl.util.GenericChain;
 import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.ControlMessage;
@@ -67,10 +68,10 @@ public class MasterNode extends AbstractNode<MasterExecutionContext> {
                             builderA
                                 .setType(EnumSet.allOf(ControlMessage.Type.class))
                                 .setRoles(EnumSet.of(ControlMessage.Role.Head, ControlMessage.Role.Tail))
-                                .setState(StorageNode.StorageState.RUNNING);
+                                .setState(StorageState.RUNNING);
 
                         } else {
-                            builderA.setState(StorageNode.StorageState.RECOVERING);
+                            builderA.setState(StorageState.RECOVERING);
                         }
 
                         context().manageNode(builderA, node.getId());
@@ -106,10 +107,10 @@ public class MasterNode extends AbstractNode<MasterExecutionContext> {
                         break;
 
                     case NodeStateChanged:
-                        switch (StorageNode.StorageState.valueOf(node.state())) {
+                        switch (StorageState.valueOf(node.state())) {
                             case RECOVERED:
                                 final ControlMessage.Builder builderC = mkSetChainBuilder(node, prevNode, nextNode)
-                                        .setState(StorageNode.StorageState.RUNNING);
+                                        .setState(StorageState.RUNNING);
 
                                 context().manageNode(builderC, node.getId());
                                 break;
@@ -154,8 +155,8 @@ public class MasterNode extends AbstractNode<MasterExecutionContext> {
         logger().info("[NEW NODE] Node '{}'@{} in state '{}'", nodeId, type, state);
     }
 
-    private static StorageNode.StorageState asStorageState(final String state) {
-        return StorageNode.StorageState.valueOf(state);
+    private static StorageState asStorageState(final String state) {
+        return StorageState.valueOf(state);
     }
 
     @Subscribe
@@ -181,18 +182,18 @@ public class MasterNode extends AbstractNode<MasterExecutionContext> {
             }
 
             if (isChanged && Messages.NodeType.Storage.equals(nodeType)) {
-                final StorageNode.StorageState newState = asStorageState(state);
-                final StorageNode.StorageState oldState = old == null ? null : asStorageState(old);
+                final StorageState newState = asStorageState(state);
+                final StorageState oldState = old == null ? null : asStorageState(old);
                 chain.handleStateChanged(nodeId, oldState, newState);
             }
         }
     }
 
     protected static class StateAwareChain extends GenericChain<NodeInfo> {
-        public void handleStateChanged(final String nodeId, final StorageNode.StorageState oldstate,
-                                       final StorageNode.StorageState newState) throws Exception {
+        public void handleStateChanged(final String nodeId, final StorageState previous,
+                                       final StorageState current) throws Exception {
             // Adjust chain
-            switch (newState) {
+            switch (current) {
                 case NEW:
                     throw new IllegalStateException(
                             String.format("Somehow 'NEW' state is received from node '%s', "
@@ -200,28 +201,28 @@ public class MasterNode extends AbstractNode<MasterExecutionContext> {
                     );
 
                 case STARTED:
-                    addNode(nodeId, newState.name(), null);
+                    addNode(nodeId, current.name(), null);
                     break;
 
                 case FAILED:
-                    removeNode(nodeId, newState.name());
+                    removeNode(nodeId, current.name());
                     break;
 
                 case RECOVERING:
-                    fireNodeStateChanged(nodeId, newState.name());
+                    fireNodeStateChanged(nodeId, current.name());
                     break;
 
                 case RECOVERED:
-                    fireNodeStateChanged(nodeId, newState.name());
+                    fireNodeStateChanged(nodeId, current.name());
                     break;
 
                 case RUNNING:
-                    fireNodeStateChanged(nodeId, newState.name());
+                    fireNodeStateChanged(nodeId, current.name());
                     break;
 
                 default:
                     throw new IllegalStateException(
-                            String.format("Node '%s' has unhandled newState '%s'", nodeId, newState)
+                            String.format("Node '%s' has unhandled newState '%s'", nodeId, current)
                     );
             }
         }
