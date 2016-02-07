@@ -93,11 +93,11 @@ public class ChainBasicTest {
 
     @Test
     public void fail_on_addingNodeTwice() throws Exception {
-        String dublicate = UUID.randomUUID().toString();
-        chain.addNodeT(dublicate);
+        String duplicate = UUID.randomUUID().toString();
+        chain.addNodeT(duplicate);
 
         exception.expect(IllegalArgumentException.class);
-        chain.addNodeT(dublicate);
+        chain.addNodeT(duplicate);
     }
 
     @Test(expected = IllegalArgumentException.class)

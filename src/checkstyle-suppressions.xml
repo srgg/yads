@@ -27,7 +27,7 @@
 <suppressions>
 
 
-    <!-- Somehow it fails on the standart Apache v2 header on each file :( -->
+    <!-- Somehow it fails on the standard Apache v2 header on each file :( -->
     <suppress checks="RegexpSingleline"
               files="(\w+)\.java" />
 

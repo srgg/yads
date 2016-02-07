@@ -35,7 +35,8 @@ import org.powermock.modules.junit4.PowerMockRunner;
 import com.github.srgg.yads.api.IStorage;
 import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.ControlMessage;
-import com.github.srgg.yads.impl.context.StorageExecutionContext;
+import com.github.srgg.yads.impl.context.StorageNodeExecutionContext;
+import com.github.srgg.yads.impl.api.context.StorageExecutionContext.StorageState;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 import com.github.srgg.yads.impl.api.context.OperationContext;
 import com.github.srgg.yads.impl.StorageNode;
@@ -65,7 +66,7 @@ public class StorageNodeTest {
     private IStorage storage;
 
     private StorageNode node;
-    private StorageExecutionContext nodeContext;
+    private StorageNodeExecutionContext nodeContext;
 
     private final StorageOperationRequest[] allOperations = {
             new StorageOperationRequest.Builder()
@@ -91,7 +92,7 @@ public class StorageNodeTest {
         final StorageNode n = new StorageNode("node1", storage);
         node = spy(n);
 
-        nodeContext = new StorageExecutionContext(communicationContext, node);
+        nodeContext = new StorageNodeExecutionContext(communicationContext, node);
         nodeContext = spy(nodeContext);
         n.configure(nodeContext);
         node.configure(nodeContext);
@@ -107,6 +108,8 @@ public class StorageNodeTest {
         //verify(node, atLeastOnce()).getId();
         //verify(node).getState();
 
+        verify(node).getState();
+        verify(nodeContext).getState();
         verifyZeroInteractions(nodeContext, storage, node);
 
         doAnswer(invocation -> {
@@ -150,7 +153,7 @@ public class StorageNodeTest {
 
         manageNode(
             new ControlMessage.Builder()
-                .setState(StorageNode.StorageState.RUNNING)
+                .setState(StorageState.RUNNING)
         );
 
         assertEquals("RUNNING", node.getState());
@@ -163,10 +166,10 @@ public class StorageNodeTest {
 
         // -- generate list of "inappropriate" states
         final List<String> states = new LinkedList<>();
-        final EnumSet<StorageNode.StorageState> allowedStates = EnumSet.of(StorageNode.StorageState.RECOVERING,
-                StorageNode.StorageState.RECOVERED, StorageNode.StorageState.RUNNING);
+        final EnumSet<StorageState> allowedStates = EnumSet.of(StorageState.RECOVERING,
+                StorageState.RECOVERED, StorageState.RUNNING);
 
-        for (StorageNode.StorageState s : StorageNode.StorageState.values()) {
+        for (StorageState s : StorageState.values()) {
             if (!allowedStates.contains(s)) {
                 states.add(s.name());
             }
@@ -198,7 +201,7 @@ public class StorageNodeTest {
     public void sendNodeStateImmediatelyInCaseOfLocalChange() throws Exception {
         verifyZeroInteractions(storage);
         startNodeAndVerify();
-        nodeContext.doNodeStateChange(StorageNode.StorageState.FAILED);
+        nodeContext.doNodeStateChange(StorageState.FAILED);
 
         /**
          * If due to whatever reason node state was changed locally,
@@ -222,7 +225,7 @@ public class StorageNodeTest {
         manageNode(
             new ControlMessage.Builder()
                     .setPrevNode("PREV-NODE")
-                    .setState(StorageNode.StorageState.RECOVERING)
+                    .setState(StorageState.RECOVERING)
         );
 
         for (StorageOperationRequest op : allOperations) {
@@ -235,13 +238,13 @@ public class StorageNodeTest {
 
         manageNode(
                 new ControlMessage.Builder()
-                        .setState(StorageNode.StorageState.RECOVERED)
+                        .setState(StorageState.RECOVERED)
         );
 
         // should process all previously queued operations
         manageNode(
             new ControlMessage.Builder()
-                    .setState(StorageNode.StorageState.RUNNING)
+                    .setState(StorageState.RUNNING)
         );
 
         // all the enqueued operation should be processed

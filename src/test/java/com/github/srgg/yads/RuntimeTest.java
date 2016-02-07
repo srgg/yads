@@ -171,14 +171,14 @@ public class RuntimeTest {
 
         assertEquals("42", m2.getObject());
 
-        // -- spinnup storage-2 and check that it'll be recovered properly
+        // -- spin up storage-2 and check that it'll be recovered properly
         rt.createStorageNode("storage-22");
         rt.waitForRunningChain();
 
         final StorageOperationResponse m3 = rt.performRequest("storage-22", getValueBuilder);
         assertEquals("42", m3.getObject());
 
-        // -- spinnup storage-3 and check that it'll be recovered properly
+        // -- spin up storage-3 and check that it'll be recovered properly
         rt.createStorageNode("storage-23");
         rt.waitForRunningChain();
 

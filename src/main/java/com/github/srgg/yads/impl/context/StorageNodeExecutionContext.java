@@ -20,11 +20,11 @@
 package com.github.srgg.yads.impl.context;
 
 import com.github.srgg.yads.api.messages.*;
-import com.github.srgg.yads.impl.AbstractNodeRuntime;
+import com.github.srgg.yads.impl.AbstractExecutionRuntime;
 import com.github.srgg.yads.impl.StorageNode;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 import com.github.srgg.yads.impl.api.context.OperationContext;
-import com.github.srgg.yads.impl.api.context.StorageNodeContext;
+import com.github.srgg.yads.impl.api.context.StorageExecutionContext;
 import com.github.srgg.yads.impl.util.MessageUtils;
 import com.github.srgg.yads.api.message.Messages;
 import com.google.common.annotations.VisibleForTesting;
@@ -38,27 +38,28 @@ import static com.google.common.base.Preconditions.checkState;
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
-public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> implements StorageNodeContext {
+public class StorageNodeExecutionContext extends AbstractExecutionRuntime<StorageNode>
+        implements StorageExecutionContext {
+
     private static final UUID LOCAL_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
     private final AtomicReference<NodeState> nodeState = new AtomicReference<>();
 
-    public StorageExecutionContext(final CommunicationContext messageContext, final StorageNode node) {
+    public StorageNodeExecutionContext(final CommunicationContext messageContext, final StorageNode node) {
         super(messageContext, node);
         logger().debug("Created");
     }
 
-
     private static class GenericOperationContext<T extends Message, R> implements OperationContext<T, R> {
         private final T operation;
-        private final StorageExecutionContext ctx;
+        private final StorageNodeExecutionContext ctx;
         private final UnsafeAcknowledge<T, R> acknowledgeOp;
 
         @FunctionalInterface
         public interface UnsafeAcknowledge<T extends Message, R> {
-            void acknowledge(StorageExecutionContext ctx, T operation, R result) throws Exception;
+            void acknowledge(StorageNodeExecutionContext ctx, T operation, R result) throws Exception;
         }
 
-        protected GenericOperationContext(final StorageExecutionContext context, final T op,
+        protected GenericOperationContext(final StorageNodeExecutionContext context, final T op,
                                           final UnsafeAcknowledge<T, R> doAck) {
             this.operation = op;
             this.ctx = context;
@@ -116,7 +117,7 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
                 logger().info(MessageUtils.dumpMessage(op,
                         "[RECOVERY-COMPLETE:%s]  '%s'...", op.getSender(), op.getId().toString()));
 
-                doNodeStateChange(StorageNode.StorageState.RECOVERED);
+                doNodeStateChange(StorageState.RECOVERED);
             }
         });
     }
@@ -127,7 +128,7 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
                              final Message message) throws Exception {
 
         final NodeState ns = nodeState.get();
-        final StorageNode.StorageState state = ns != null ? ns.getState() : null;
+        final StorageState state = ns != null ? ns.getState() : null;
 
         switch (type) {
             case ControlMessage:
@@ -142,7 +143,7 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
 
             case RecoveryRequest:
                 final RecoveryRequest rrm = (RecoveryRequest) message;
-                if (StorageNode.StorageState.RUNNING.equals(state)) {
+                if (StorageState.RUNNING.equals(state)) {
                     logger().info(MessageUtils.dumpMessage(message,
                             "[RECOVERY-REQ:%s]  '%s'...", rrm.getSender(), rrm.getId().toString()));
 
@@ -156,7 +157,7 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
 
             case RecoveryResponse:
                 final RecoveryResponse rrspm = (RecoveryResponse) message;
-                if (StorageNode.StorageState.RECOVERING.equals(state)) {
+                if (StorageState.RECOVERING.equals(state)) {
                     node().onRecoveryResponse(rrspm);
                 } else {
                     logger().warn("[RECOVERY-RESP:{}]  WILL BE IGNORED due to the inappropriate node state ('{}')."
@@ -232,7 +233,7 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
         }
 
         if (cm.getType().contains(ControlMessage.Type.SetState)) {
-            ns.state = StorageNode.StorageState.valueOf(cm.getState());
+            ns.state = StorageState.valueOf(cm.getState());
             stateChanged = true;
         } else if (old != null) {
             ns.state = old.state;
@@ -264,7 +265,7 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
     public static class NodeState {
         private UUID id;
         private EnumSet<ControlMessage.Role> role;
-        private StorageNode.StorageState state;
+        private StorageState state;
         private String nextNode;
         private String prevNode;
         private String lastUpdatedBy;
@@ -278,7 +279,7 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
             return role;
         }
 
-        public StorageNode.StorageState getState() {
+        public StorageState getState() {
             return state;
         }
 
@@ -326,12 +327,12 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
             );
         } catch (Exception e) {
             logger().error(String.format("Failed to start recovery from '%s'", recoverySource), e);
-            doNodeStateChange(StorageNode.StorageState.FAILED);
+            doNodeStateChange(StorageState.FAILED);
         }
     }
 
     @VisibleForTesting
-    public void doNodeStateChange(final StorageNode.StorageState state) {
+    public void doNodeStateChange(final StorageState state) {
         final ControlMessage cm =  new ControlMessage.Builder()
                 .setState(state)
                 .setId(LOCAL_ID)
@@ -340,5 +341,14 @@ public class StorageExecutionContext extends AbstractNodeRuntime<StorageNode> im
 
         updateNodeState(cm);
         notifyAboutNodeStatus();
+    }
+
+    protected Map<String, Set<String>> createTransitions() {
+        return TransitionMatrixBuilder.create(super.createTransitions())
+                .add(StorageState.STARTED, StorageState.RECOVERING)
+                .add(StorageState.FAILED, StorageState.RECOVERING)
+                .add(StorageState.RECOVERED, StorageState.RUNNING, StorageState.FAILED, StorageState.STOPPED)
+                .add(StorageState.RECOVERING, StorageState.RECOVERED, StorageState.FAILED, StorageState.STOPPED)
+                .build();
     }
 }

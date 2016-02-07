@@ -26,7 +26,7 @@ import com.github.srgg.yads.api.messages.ControlMessage;
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
-public interface MasterNodeContext extends NodeContext {
+public interface MasterExecutionContext extends ExecutionContext {
     default void manageNode(ControlMessage.Builder builder, String...nodeIds) throws Exception {
         manageNode(builder, Arrays.asList(nodeIds));
     }
