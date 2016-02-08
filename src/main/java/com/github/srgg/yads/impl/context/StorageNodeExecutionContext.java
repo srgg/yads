@@ -340,7 +340,9 @@ public class StorageNodeExecutionContext extends AbstractExecutionRuntime<Storag
                 .build();
 
         updateNodeState(cm);
-        notifyAboutNodeStatus();
+
+        // send status notification
+        executeBgTaskImmediately();
     }
 
     protected Map<String, Set<String>> createTransitions() {

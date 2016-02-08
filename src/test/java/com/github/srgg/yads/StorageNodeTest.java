@@ -21,17 +21,8 @@ package com.github.srgg.yads;
 
 import com.github.srgg.yads.api.messages.NodeStatus;
 import com.github.srgg.yads.api.messages.StorageOperationRequest;
-import org.junit.Before;
-import org.junit.FixMethodOrder;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.MethodSorters;
+import org.junit.*;
 import org.mockito.Mock;
-import org.mockito.Mockito;
-import org.powermock.api.mockito.PowerMockito;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
 import com.github.srgg.yads.api.IStorage;
 import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.ControlMessage;
@@ -49,24 +40,12 @@ import static org.mockito.Mockito.*;
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
-@RunWith(PowerMockRunner.class)
-@PrepareForTest({StorageNode.class})
-@FixMethodOrder(MethodSorters.JVM)
-public class StorageNodeTest {
-    @Rule
-    public FancyTestWatcher watcher = new FancyTestWatcher();
-
-    @Mock
-    private CommunicationContext communicationContext;
-
+public class StorageNodeTest extends AbstractNodeTest<StorageNode, StorageNodeExecutionContext> {
     @Mock
     private OperationContext operationContext;
 
     @Mock
     private IStorage storage;
-
-    private StorageNode node;
-    private StorageNodeExecutionContext nodeContext;
 
     private final StorageOperationRequest[] allOperations = {
             new StorageOperationRequest.Builder()
@@ -84,33 +63,20 @@ public class StorageNodeTest {
                     .build()
     };
 
+    @Override
+    protected StorageNode createNode() {
+        return new StorageNode("node1", storage);
+    }
+
+    @Override
+    protected StorageNodeExecutionContext createNodeContext(CommunicationContext ctx, StorageNode node) {
+        return new StorageNodeExecutionContext(ctx, node);
+    }
+
     @Before
     public void setup() throws Exception {
-        JsonUnitInitializer.initialize();
-
-        // TODO: figure out how initialization can be refactored with @InjectMocks
-        final StorageNode n = new StorageNode("node1", storage);
-        node = spy(n);
-
-        nodeContext = new StorageNodeExecutionContext(communicationContext, node);
-        nodeContext = spy(nodeContext);
-        n.configure(nodeContext);
-        node.configure(nodeContext);
-
-        Mockito.reset(node);
-        verifyZeroInteractions(nodeContext);
+        super.setup();
         verifyZeroInteractions(storage);
-        verifyZeroInteractions(node);
-
-        assertEquals("node1", node.getId());
-        assertEquals("NEW", node.getState());
-
-        //verify(node, atLeastOnce()).getId();
-        //verify(node).getState();
-
-        verify(node).getState();
-        verify(nodeContext).getState();
-        verifyZeroInteractions(nodeContext, storage, node);
 
         doAnswer(invocation -> {
                 final StorageOperationRequest op = (StorageOperationRequest) invocation.getArguments()[0];
@@ -120,14 +86,13 @@ public class StorageNodeTest {
 
     }
 
-    @Before
-    public void shutdown() {
-//        Mockito.verifyNoMoreInteractions(nodeContext, storage, node);
-//        verifyNoMoreInteractions(nodeContext, storage, node);
-    }
-
     @Test
     public void checkBehavior_of_StartAndStop() throws Exception {
+        //reset(node);
+//        verifyZeroInteractions(node);
+//
+//        final String actual = node.getState();
+//        verify(node, only()).getState();
         startNodeAndVerify();
         stopNodeAndVerify();
     }
@@ -157,7 +122,7 @@ public class StorageNodeTest {
         );
 
         assertEquals("RUNNING", node.getState());
-        PowerMockito.verifyPrivate(node).invoke("onStateChanged", "STARTED", "RUNNING");
+        verify(node).onStateChanged("STARTED", "RUNNING");
         stopNodeAndVerify();
     }
 
@@ -207,14 +172,12 @@ public class StorageNodeTest {
          * If due to whatever reason node state was changed locally,
          * the new state should be propagated to the leader immediately
          */
-        verify(communicationContext, after(100)).send(
-                eq(CommunicationContext.LEADER_NODE),
-                argThat( TestUtils.message(NodeStatus.class,
-                        "{sender: 'node1',"
-                            + "type: 'Storage',"
-                            + "status: 'FAILED'"
-                        + "}"))
-            );
+        ensureMessageOut(CommunicationContext.LEADER_NODE, NodeStatus.class,
+                "{sender: 'node1',"
+                        + "type: 'Storage',"
+                        + "status: 'FAILED'"
+                        + "}"
+        );
     }
 
     @Test
@@ -254,22 +217,5 @@ public class StorageNodeTest {
         verify(operationContext, times(allOperations.length)).ackOperation(any());
 
         stopNodeAndVerify();
-    }
-
-    private void startNodeAndVerify() throws Exception {
-        node.start();
-        verify(nodeContext).stateChanged("STARTED");
-
-        assertEquals("STARTED", node.getState());
-        PowerMockito.verifyPrivate(node).invoke("onStateChanged", "NEW", "STARTED");
-    }
-
-    private void stopNodeAndVerify() throws Exception {
-        final String state = node.getState();
-        node.stop();
-        verify(nodeContext).stateChanged("STOPPED");
-
-        assertEquals("STOPPED", node.getState());
-        PowerMockito.verifyPrivate(node).invoke("onStateChanged", state, "STOPPED");
     }
 }
