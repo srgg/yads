@@ -70,8 +70,9 @@ public class ClientExecutionContextImpl extends AbstractExecutionRuntime<ClientI
 
             default:
                 // nothing to do
+                return false;
         }
-        return false;
+        return true;
     }
 
     protected Set<String> getChainInfo() {
