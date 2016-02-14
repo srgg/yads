@@ -139,6 +139,9 @@ public class StorageNodeExecutionContext extends AbstractExecutionRuntime<Storag
                     );
 
                 updateNodeState(cm);
+
+                // send status notification
+                executeBgTaskImmediately();
                 break;
 
             case RecoveryRequest:
