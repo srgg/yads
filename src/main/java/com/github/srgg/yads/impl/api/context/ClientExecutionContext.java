@@ -20,9 +20,6 @@
 package com.github.srgg.yads.impl.api.context;
 
 import com.github.srgg.yads.api.messages.StorageOperationRequest;
-import com.github.srgg.yads.api.messages.StorageOperationResponse;
-
-import java.util.concurrent.Future;
 
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
@@ -31,5 +28,5 @@ public interface ClientExecutionContext extends ExecutionContext {
     // TODO: consider to make it auto generated
     enum ClientState { NEW, STARTED, WAITING_4_CHAIN, RUNNING, STOPPED, FAILED }
 
-    Future<StorageOperationResponse> perform(StorageOperationRequest.Builder builder) throws Exception;
+    void performStorageOperation(StorageOperationRequest.Builder builder) throws Exception;
 }

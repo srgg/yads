@@ -26,13 +26,13 @@ import com.github.srgg.yads.impl.ClientImpl;
 import com.github.srgg.yads.impl.api.context.ClientExecutionContext;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * @author Sergey Galkin <srggal at gmail dot com>
@@ -41,7 +41,6 @@ public class ClientExecutionContextImpl extends AbstractExecutionRuntime<ClientI
     private static class StorageOpFuture extends CompletableFuture<StorageOperationResponse> {
     }
 
-    private final ConcurrentHashMap<UUID, StorageOpFuture> activeFeatures = new ConcurrentHashMap<>();
     private final AtomicReference<ChainInfoResponse> chainState = new AtomicReference<>();
 
     public ClientExecutionContextImpl(final CommunicationContext mc, final ClientImpl client) {
@@ -54,9 +53,7 @@ public class ClientExecutionContextImpl extends AbstractExecutionRuntime<ClientI
         switch (type) {
             case StorageOperationResponse:
                 final StorageOperationResponse sor = (StorageOperationResponse) message;
-                final UUID rid = sor.getId();
-                final StorageOpFuture f = activeFeatures.get(rid);
-                f.complete(sor);
+                node().onStorageResponse(sor);
                 break;
 
             case ChainInfoResponse:
@@ -81,13 +78,35 @@ public class ClientExecutionContextImpl extends AbstractExecutionRuntime<ClientI
     }
 
     @Override
-    public Future<StorageOperationResponse> perform(final StorageOperationRequest.Builder builder) throws Exception {
-        final UUID rid = builder.getId();
-        final StorageOpFuture f = new StorageOpFuture();
-        activeFeatures.put(rid, f);
+    public void performStorageOperation(final StorageOperationRequest.Builder builder) throws Exception {
+        final Set<String> chainInfo = getChainInfo();
+        checkState(chainInfo != null, "Can't perform storage operation, chain info is NULL");
 
-        sendMessage("", builder);
-        return f;
+        String recipient = null;
+
+        switch (builder.getType()) {
+            case Get:
+                final Iterator<String> iterator = chainInfo.iterator();
+                while (iterator.hasNext()) {
+
+                    final String s = iterator.next();
+                    if (!iterator.hasNext()) {
+                        recipient = s;
+                        break;
+                    }
+                }
+                break;
+
+            case Put:
+                recipient = getChainInfo().iterator().next();
+                break;
+
+            default:
+                throw new IllegalStateException("Unsupported storage operation with type '" + builder.getType() + "'");
+        }
+
+        checkState(recipient != null);
+        sendMessage(recipient, builder);
     }
 
     @Override

@@ -19,14 +19,23 @@
  */
 package com.github.srgg.yads;
 
-import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.ChainInfoRequest;
 import com.github.srgg.yads.api.messages.ChainInfoResponse;
+import com.github.srgg.yads.api.messages.StorageOperationRequest;
+import com.github.srgg.yads.api.messages.StorageOperationResponse;
 import com.github.srgg.yads.impl.ClientImpl;
 import com.github.srgg.yads.impl.api.context.ClientExecutionContext;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 import com.github.srgg.yads.impl.context.ClientExecutionContextImpl;
 import org.junit.Test;
+import org.mockito.internal.verification.VerificationModeFactory;
+import org.mockito.verification.After;
+import org.mockito.verification.VerificationAfterDelay;
+
+import java.util.function.Consumer;
+
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.*;
 
 
 /**
@@ -41,7 +50,7 @@ public class ClientTest extends AbstractNodeTest<ClientImpl, ClientExecutionCont
 
     @Override
     protected ClientImpl createNode() {
-        return new ClientImpl("client-1", Messages.NodeType.Client);
+        return new ClientImpl("client-1");
     }
 
     @Override
@@ -57,19 +66,90 @@ public class ClientTest extends AbstractNodeTest<ClientImpl, ClientExecutionCont
 
     @Test
     public void checkSwitchToRunningState() throws Exception {
-        startNodeAndVerify();
-        simulateMessageIn(new ChainInfoResponse.Builder()
-            .setSender("leader-1")
-            .addChain("storage-head")
-            .addChain("storage-middle")
-            .addChain("storage-tail")
-        );
-
-        ensureStateChanged("WAITING_4_CHAIN", "RUNNING");
+        spinUpClient("storage-head", "storage-middle", "storage-tail");
     }
 
+    @Test
+    public void checkBehavior_of_StorageOperationProcessing() throws Exception {
+        final Consumer<StorageOperationResponse> putConsumer = mock(Consumer.class);
+        final Consumer<StorageOperationResponse> getConsumer = mock(Consumer.class);
+
+        startNodeAndVerify();
+
+        node.store("1", "42", putConsumer);
+        node.fetch("2", getConsumer);
+
+
+        ensureMessageOut(CommunicationContext.LEADER_NODE, ChainInfoRequest.class, "{sender: 'client-1'}");
+
+        final VerificationAfterDelay noneEvenAfter = new After(1000, VerificationModeFactory.times(0));
+
+        // mustn't be processed
+        verify(putConsumer, noneEvenAfter).accept(any());
+        verify(getConsumer, noneEvenAfter).accept(any());
+
+        simulateChainInfoResponse("head", "middle", "tail");
+
+        final StorageOperationRequest putReq = ensureMessageOut("head",
+                StorageOperationRequest.class,
+                "{sender: 'client-1', type: 'Put', key: '1', object: '42'}");
+
+        final StorageOperationRequest getReq = ensureMessageOut("tail",
+                StorageOperationRequest.class,
+                "{sender: 'client-1', type: 'Get', key: '2', object: null}");
+
+        // since there are no responses, mustn't be processed still
+        verify(putConsumer, noneEvenAfter).accept(any());
+        verify(getConsumer, noneEvenAfter).accept(any());
+
+        // simulate Get response, as a result the only getConsumer should be triggered
+        simulateMessageIn(getReq.getSender(),
+                new StorageOperationResponse.Builder()
+                    .setRid(getReq.getId())
+                    .setSender("tail")
+                    .setObject("41")
+            );
+
+        verify(getConsumer, after(1000)).accept(
+                argThat(TestUtils.message(StorageOperationResponse.class,
+                        "{rid: '%s', object: '41'}", getReq.getId()))
+            );
+
+        verify(putConsumer, noneEvenAfter).accept(any());
+
+        // simulate Put response
+        simulateMessageIn(getReq.getSender(),
+                new StorageOperationResponse.Builder()
+                        .setRid(putReq.getId())
+                        .setSender("tail")
+        );
+
+        verify(putConsumer, after(1000)).accept(
+                argThat(TestUtils.message(StorageOperationResponse.class,
+                        "{rid: '%s', object: null}", putReq.getId()))
+        );
+
+        verifyNoMoreInteractions(getConsumer, putConsumer);
+    }
+
+    @Override
     protected void startNodeAndVerify() throws Exception {
         super.startNodeAndVerify(ClientExecutionContext.ClientState.WAITING_4_CHAIN.name());
         ensureMessageOut(CommunicationContext.LEADER_NODE, ChainInfoRequest.class, "{sender: 'client-1'}");
+    }
+
+    protected void spinUpClient(String...chain) throws Exception {
+        startNodeAndVerify();
+        ensureMessageOut(CommunicationContext.LEADER_NODE, ChainInfoRequest.class, "{sender: 'client-1'}");
+
+        simulateChainInfoResponse(chain);
+        ensureStateChanged("WAITING_4_CHAIN", "RUNNING");
+    }
+
+    protected final void simulateChainInfoResponse(String...chain) throws Exception {
+        simulateMessageIn(new ChainInfoResponse.Builder()
+                .setSender("leader-1")
+                .addChain(chain)
+        );
     }
 }

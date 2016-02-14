@@ -35,6 +35,13 @@ import java.util.UUID;
 @JsonDeserialize(builder = StorageOperationResponse.Builder.class)
 @FreeBuilder
 public interface StorageOperationResponse extends Message {
+    /**
+     *
+     * @return request Id
+     */
+    @JsonProperty("rid")
+    UUID getRid();
+
     @Nullable
     @JsonProperty("object")
     Object getObject();

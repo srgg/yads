@@ -177,4 +177,8 @@ public class TestUtils {
     public static <M extends Matcher> M message(Class messageClass, Object expected) {
         return (M) MessageMatcher.create(messageClass, expected);
     }
+
+    public static <M extends Matcher> M message(Class messageClass, String jsonTemplate, Object... args) {
+        return (M) MessageMatcher.create(messageClass, String.format(jsonTemplate, args));
+    }
 }

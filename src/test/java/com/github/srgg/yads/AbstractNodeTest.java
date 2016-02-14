@@ -30,12 +30,15 @@ import org.junit.FixMethodOrder;
 import org.junit.Rule;
 import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.argThat;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -45,6 +48,8 @@ import static org.mockito.Mockito.*;
 @RunWith(MockitoJUnitRunner.class)
 @FixMethodOrder(MethodSorters.JVM)
 public abstract class AbstractNodeTest<N extends AbstractNode, C extends AbstractExecutionRuntime<N>> {
+    protected Logger logger = LoggerFactory.getLogger(getClass());
+
     @Rule
     public FancyTestWatcher watcher = new FancyTestWatcher();
 
@@ -80,6 +85,24 @@ public abstract class AbstractNodeTest<N extends AbstractNode, C extends Abstrac
         verify(node).getState();
         verify(nodeContext).getState();
         reset(nodeContext, node, communicationContext);
+
+        doAnswer(invocation -> {
+            final String recipient = (String) invocation.getArguments()[0];
+            final Message message = (Message) invocation.getArguments()[1];
+
+            AbstractTransport.dumpMessage(logger, false, recipient, message);
+            return null;
+        }).when(communicationContext).send(anyString(), any());
+
+        doAnswer(invocation -> {
+            final String recipient = (String) invocation.getArguments()[0];
+            final Message message = (Message) invocation.getArguments()[2];
+
+            AbstractTransport.dumpMessage(logger, true, recipient, message);
+
+            final Object r = invocation.callRealMethod();
+            return r;
+        }).when(nodeContext).onMessage(anyString(), any(), any());
     }
 
 //    @After
@@ -115,11 +138,17 @@ public abstract class AbstractNodeTest<N extends AbstractNode, C extends Abstrac
         verify(node).onStateChanged(state, "STOPPED");
     }
 
-    protected <M extends Message> void ensureMessageOut(String recipient, Class<M> messageClass, Object expected) throws Exception {
+    protected <M extends Message> M ensureMessageOut(String recipient, Class<M> messageClass, Object expected) throws Exception {
+        final ArgumentCaptor<Message> captor = ArgumentCaptor.forClass(Message.class);
+
         verify(communicationContext, after(1000)).send(
                 eq(recipient),
-                argThat( TestUtils.message(messageClass, expected))
+                captor.capture()
         );
+
+        final Message m = captor.getValue();
+        assertThat( m, TestUtils.message(messageClass, expected));
+        return (M) m;
     }
 
     protected void ensureStateChanged(String to) {

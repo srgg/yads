@@ -24,43 +24,126 @@ import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.StorageOperationRequest;
 import com.github.srgg.yads.api.messages.StorageOperationResponse;
 import com.github.srgg.yads.impl.api.context.ClientExecutionContext;
-import com.google.common.base.Preconditions;
+import com.github.srgg.yads.impl.api.context.ClientExecutionContext.ClientState;
+import com.github.srgg.yads.impl.api.context.Subscribe;
+import com.github.srgg.yads.impl.util.AbstractProcessingCycle;
 
-import java.util.concurrent.Future;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
 public class ClientImpl extends AbstractNode<ClientExecutionContext> implements Client {
-    public ClientImpl(final String id, final Messages.NodeType type) {
-        super(id, type);
+    private final ConcurrentHashMap<UUID, StorageOpFuture> activeFutures = new ConcurrentHashMap<>();
+
+    private static class StorageOpFuture extends CompletableFuture<StorageOperationResponse> {
+        private final StorageOperationRequest.Builder builder;
+
+        StorageOpFuture(final StorageOperationRequest.Builder bld) {
+            this.builder = bld;
+        }
+
+        StorageOperationRequest.Builder getBuilder() {
+            return builder;
+        }
     }
 
-    private Future<StorageOperationResponse> performOperation(final StorageOperationRequest.Builder builder) throws Exception {
-        Preconditions.checkState("RUNNING".equals(getState()));
+    private final AbstractProcessingCycle<StorageOpFuture> processingCycle =
+            new AbstractProcessingCycle<StorageOpFuture>(this.logger()) {
 
+                @Override
+                public String getId() {
+                    return ClientImpl.this.getId();
+                }
+
+                @Override
+                protected boolean doProcessing() throws Exception {
+                    final StorageOpFuture f = this.poll();
+                    activeFutures.put(f.builder.getId(), f);
+                    context().performStorageOperation(f.builder);
+                    return true;
+                }
+            };
+
+    public ClientImpl(final String id) {
+        super(id, Messages.NodeType.Client);
+    }
+
+    private StorageOpFuture enqueueOperation(final StorageOperationRequest.Builder builder,
+                                             final Consumer<StorageOperationResponse> consumer) throws Exception {
         builder.setSender(getId());
-        return context().perform(builder);
+        final StorageOpFuture f = new StorageOpFuture(builder);
+
+        if (consumer != null) {
+            f.thenAccept(consumer);
+        }
+
+        processingCycle.enqueue(f);
+        return f;
+    }
+
+    @Override
+    public CompletableFuture<StorageOperationResponse> store(final String key, final Object data,
+                                                             final Consumer<StorageOperationResponse> consumer) throws Exception {
+        return enqueueOperation(
+                new StorageOperationRequest.Builder()
+                        .setType(StorageOperationRequest.OperationType.Put)
+                        .setKey(key)
+                        .setObject(data),
+                consumer
+        );
     }
 
     @Override
     public void store(final String key, final Object data) throws Exception {
-        final Future<StorageOperationResponse> f = performOperation(new StorageOperationRequest.Builder()
-            .setType(StorageOperationRequest.OperationType.Put)
-            .setKey(key)
-            .setObject(data)
-        );
-
+        final CompletableFuture<StorageOperationResponse> f = store(key, data, null);
         f.get();
     }
 
     @Override
-    public Object fetch(final String key) throws Exception {
-        final Future<StorageOperationResponse> f = performOperation(new StorageOperationRequest.Builder()
-                .setType(StorageOperationRequest.OperationType.Get)
-                .setKey(key)
-        );
+    public CompletableFuture<StorageOperationResponse> fetch(final String key,
+                                                             final Consumer<StorageOperationResponse> consumer) throws Exception {
 
+        return enqueueOperation(
+                new StorageOperationRequest.Builder()
+                        .setType(StorageOperationRequest.OperationType.Get)
+                        .setKey(key),
+                consumer
+            );
+    }
+
+    @Override
+    public Object fetch(final String key) throws Exception {
+        final CompletableFuture<StorageOperationResponse> f = fetch(key, null);
         return f.get().getObject();
+    }
+
+    @Override
+    public void onStateChanged(final String old, final String current) {
+        super.onStateChanged(old, current);
+        if (ClientState.RUNNING.name().equals(current)) {
+            processingCycle.start();
+        } else if (ClientState.STOPPED.name().equals(current)) {
+            processingCycle.stop();
+        }
+    }
+
+    @Subscribe
+    public void onStorageResponse(final StorageOperationResponse response) throws Exception {
+        final StorageOpFuture f = activeFutures.remove(response.getRid());
+
+        if (f == null) {
+            logger().warn("Storage response will be skipped");
+        } else {
+            if (f.isDone()) {
+                logger().debug("Corresponding future already done (isCanceled: {}, isCompletedExceptionally: {})",
+                        f.isCancelled(), f.isCompletedExceptionally());
+            } else {
+                f.complete(response);
+            }
+        }
     }
 }

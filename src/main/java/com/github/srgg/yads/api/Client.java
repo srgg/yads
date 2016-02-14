@@ -19,12 +19,25 @@
  */
 package com.github.srgg.yads.api;
 
+import com.github.srgg.yads.api.messages.StorageOperationResponse;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+
 /**
  * Client interface.
  *
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
 public interface Client extends ActivationAware {
+    CompletableFuture<StorageOperationResponse> store(String key, Object data,
+                                                      Consumer<StorageOperationResponse> consumer) throws Exception;
+
     void store(String key, Object data) throws Exception;
+
     Object fetch(String key) throws Exception;
+
+    CompletableFuture<StorageOperationResponse> fetch(String key,
+                                                      Consumer<StorageOperationResponse> consumer) throws Exception;
+
 }

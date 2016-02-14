@@ -92,11 +92,11 @@ public class StorageNodeExecutionContext extends AbstractExecutionRuntime<Storag
         return new GenericOperationContext<>(this, operation, anckOP);
     }
 
-    // TODO: Requires to have default implementation
     @Override
     public OperationContext<StorageOperationRequest, Object> contextFor(final StorageOperationRequest operation) {
         return createOperationContext(operation, (ctx, op, r) -> ctx.sendMessage(operation.getSender(),
                 new StorageOperationResponse.Builder()
+                    .setRid(op.getId())
                     .setObject(r)
         ));
     }
