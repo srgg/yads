@@ -24,7 +24,6 @@ import com.github.srgg.yads.api.messages.StorageOperationRequest;
 import org.junit.*;
 import org.mockito.Mock;
 import com.github.srgg.yads.api.IStorage;
-import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.ControlMessage;
 import com.github.srgg.yads.impl.context.StorageNodeExecutionContext;
 import com.github.srgg.yads.impl.api.context.StorageExecutionContext.StorageState;
@@ -88,35 +87,15 @@ public class StorageNodeTest extends AbstractNodeTest<StorageNode, StorageNodeEx
 
     @Test
     public void checkBehavior_of_StartAndStop() throws Exception {
-        //reset(node);
-//        verifyZeroInteractions(node);
-//
-//        final String actual = node.getState();
-//        verify(node, only()).getState();
         startNodeAndVerify();
         stopNodeAndVerify();
-    }
-
-    private void manageNode(ControlMessage.Builder builder) {
-        final ControlMessage msg = builder
-                .setSender("Anonymous")
-                .build();
-
-        try {
-            nodeContext.onMessage(node.getId(), Messages.MessageTypes.ControlMessage, msg);
-        } catch (Exception e) {
-            if (e instanceof RuntimeException) {
-                throw (RuntimeException)e;
-            }
-            throw new RuntimeException(e);
-        }
     }
 
     @Test
     public void checkBehavior_of_StateChangeUsingControlMessage() throws Exception {
         startNodeAndVerify();
 
-        manageNode(
+        simulateMessageIn(
             new ControlMessage.Builder()
                 .setState(StorageState.RUNNING)
         );
@@ -143,7 +122,7 @@ public class StorageNodeTest extends AbstractNodeTest<StorageNode, StorageNodeEx
         // --
         for (String s: states) {
             if (!node.getState().equals(s)) {
-                manageNode(
+                simulateMessageIn(
                     new ControlMessage.Builder()
                             .setState(s)
                 );
@@ -185,7 +164,7 @@ public class StorageNodeTest extends AbstractNodeTest<StorageNode, StorageNodeEx
         verifyZeroInteractions(storage);
         startNodeAndVerify();
 
-        manageNode(
+        simulateMessageIn(
             new ControlMessage.Builder()
                     .setPrevNode("PREV-NODE")
                     .setState(StorageState.RECOVERING)
@@ -199,13 +178,13 @@ public class StorageNodeTest extends AbstractNodeTest<StorageNode, StorageNodeEx
         verify(storage, after(2000).never()).process(any());
         verifyZeroInteractions(storage);
 
-        manageNode(
+        simulateMessageIn(
                 new ControlMessage.Builder()
                         .setState(StorageState.RECOVERED)
         );
 
         // should process all previously queued operations
-        manageNode(
+        simulateMessageIn(
             new ControlMessage.Builder()
                     .setState(StorageState.RUNNING)
         );

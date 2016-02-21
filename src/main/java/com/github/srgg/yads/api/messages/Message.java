@@ -40,6 +40,7 @@ public interface Message extends Identifiable<UUID> {
         B setId(UUID id);
         UUID getId();
 
+        String getSender();
         MessageBuilder setSender(String id);
 
         M build();

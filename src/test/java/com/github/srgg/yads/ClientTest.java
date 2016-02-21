@@ -27,7 +27,9 @@ import com.github.srgg.yads.impl.ClientImpl;
 import com.github.srgg.yads.impl.api.context.ClientExecutionContext;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 import com.github.srgg.yads.impl.context.ClientExecutionContextImpl;
+import org.junit.FixMethodOrder;
 import org.junit.Test;
+import org.junit.runners.MethodSorters;
 import org.mockito.internal.verification.VerificationModeFactory;
 import org.mockito.verification.After;
 import org.mockito.verification.VerificationAfterDelay;
@@ -41,6 +43,7 @@ import static org.mockito.Mockito.*;
 /**
  * @author Sergey Galkin <srggal at gmail dot com>
  */
+@FixMethodOrder(MethodSorters.JVM)
 public class ClientTest extends AbstractNodeTest<ClientImpl, ClientExecutionContextImpl> {
 
     @Override
@@ -65,8 +68,20 @@ public class ClientTest extends AbstractNodeTest<ClientImpl, ClientExecutionCont
     }
 
     @Test
-    public void checkSwitchToRunningState() throws Exception {
-        spinUpClient("storage-head", "storage-middle", "storage-tail");
+    public void switchToRunningState_onlyIf_ChainIsNotEpty() throws Exception {
+        startNodeAndVerify();
+        ensureStateChanged("WAITING_4_CHAIN");
+
+        // On No/Empty chain should stay in WAITING_4_CHAIN
+        ensureMessageOut(CommunicationContext.LEADER_NODE, ChainInfoRequest.class, "{sender: 'client-1'}");
+        simulateChainInfoResponse(new String[0]);
+        ensureStateChanged("WAITING_4_CHAIN");
+
+        ensureMessageOut(CommunicationContext.LEADER_NODE, ChainInfoRequest.class, "{sender: 'client-1'}");
+        simulateChainInfoResponse("node-1");
+        ensureStateChanged("RUNNING");
+
+        ensureThatNoUnexpectedMessages();
     }
 
     @Test
@@ -138,13 +153,13 @@ public class ClientTest extends AbstractNodeTest<ClientImpl, ClientExecutionCont
         ensureMessageOut(CommunicationContext.LEADER_NODE, ChainInfoRequest.class, "{sender: 'client-1'}");
     }
 
-    protected void spinUpClient(String...chain) throws Exception {
-        startNodeAndVerify();
-        ensureMessageOut(CommunicationContext.LEADER_NODE, ChainInfoRequest.class, "{sender: 'client-1'}");
-
-        simulateChainInfoResponse(chain);
-        ensureStateChanged("WAITING_4_CHAIN", "RUNNING");
-    }
+//    protected void spinUpClient(String...chain) throws Exception {
+//        startNodeAndVerify();
+//        ensureMessageOut(CommunicationContext.LEADER_NODE, ChainInfoRequest.class, "{sender: 'client-1'}");
+//
+//        simulateChainInfoResponse(chain);
+//        ensureStateChanged("WAITING_4_CHAIN", "RUNNING");
+//    }
 
     protected final void simulateChainInfoResponse(String...chain) throws Exception {
         simulateMessageIn(new ChainInfoResponse.Builder()

@@ -60,7 +60,8 @@ public class ClientExecutionContextImpl extends AbstractExecutionRuntime<ClientI
                 final ChainInfoResponse cir = (ChainInfoResponse) message;
                 chainState.set(cir);
 
-                if (getState().equals(ClientState.WAITING_4_CHAIN.name())) {
+                if (getState().equals(ClientState.WAITING_4_CHAIN.name())
+                        && !cir.getChain().isEmpty()) {
                     changeState(ClientState.RUNNING.name());
                 }
                 break;

@@ -19,6 +19,7 @@
  */
 package com.github.srgg.yads;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.Message;
 import com.github.srgg.yads.impl.AbstractExecutionRuntime;
@@ -26,19 +27,20 @@ import com.github.srgg.yads.impl.AbstractNode;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 import com.github.srgg.yads.impl.context.communication.AbstractTransport;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
 import org.junit.Rule;
 import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.mockito.internal.invocation.InvocationImpl;
+import org.mockito.listeners.InvocationListener;
+import org.mockito.listeners.MethodInvocationReport;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -53,26 +55,58 @@ public abstract class AbstractNodeTest<N extends AbstractNode, C extends Abstrac
     @Rule
     public FancyTestWatcher watcher = new FancyTestWatcher();
 
-    @Mock
     protected CommunicationContext communicationContext;
 
     protected N node;
     protected C nodeContext;
+    protected static ObjectMapper mapper;
+
 
     protected abstract N createNode();
 
     protected abstract C createNodeContext(final CommunicationContext ctx, final N node);
 
+    @BeforeClass
+    public static void initializeJsonUnit() {
+        mapper = JsonUnitInitializer.initialize();
+    }
+
     @Before
     public void setup() throws Exception {
-        JsonUnitInitializer.initialize();
+        // http://stackoverflow.com/questions/11802088/how-do-i-enable-mockito-debug-messages
+        //communicationContext = mock(CommunicationContext.class, withSettings().verboseLogging());
+        communicationContext = mock(CommunicationContext.class, withSettings().invocationListeners(
+                new InvocationListener() {
+                    @Override
+                    public void reportInvocation(MethodInvocationReport methodInvocationReport) {
+                        final String str = methodInvocationReport.getInvocation().toString();
+
+                        if (str.startsWith("communicationContext.send(")) {
+                            final InvocationImpl impl = (InvocationImpl) methodInvocationReport.getInvocation();
+                            final String recipient = (String) impl.getArguments()[0];
+                            final Message message = (Message) impl.getArguments()[1];
+
+                            if (message != null) {
+                                AbstractTransport.dumpMessage(logger, false, recipient, message);
+                            } else {
+                                logger.warn("WEIRD");
+                            }
+                        } else if (str.equals("communicationContext.onMessage(")) {
+                            final InvocationImpl impl = (InvocationImpl) methodInvocationReport.getInvocation();
+                            final String recipient = (String) impl.getArguments()[0];
+                            final Message message = (Message) impl.getArguments()[2];
+
+                            AbstractTransport.dumpMessage(logger, true, recipient, message);
+                        }
+                    }
+                }
+        ));
 
         // TODO: figure out how initialization can be refactored with @InjectMocks
         final N n = createNode();
         node = spy(n);
 
-        nodeContext = createNodeContext(communicationContext, node);
-        nodeContext = spy(nodeContext);
+        nodeContext = spy(createNodeContext(communicationContext, node));
         n.configure(nodeContext);
         node.configure(nodeContext);
 
@@ -85,24 +119,6 @@ public abstract class AbstractNodeTest<N extends AbstractNode, C extends Abstrac
         verify(node).getState();
         verify(nodeContext).getState();
         reset(nodeContext, node, communicationContext);
-
-        doAnswer(invocation -> {
-            final String recipient = (String) invocation.getArguments()[0];
-            final Message message = (Message) invocation.getArguments()[1];
-
-            AbstractTransport.dumpMessage(logger, false, recipient, message);
-            return null;
-        }).when(communicationContext).send(anyString(), any());
-
-        doAnswer(invocation -> {
-            final String recipient = (String) invocation.getArguments()[0];
-            final Message message = (Message) invocation.getArguments()[2];
-
-            AbstractTransport.dumpMessage(logger, true, recipient, message);
-
-            final Object r = invocation.callRealMethod();
-            return r;
-        }).when(nodeContext).onMessage(anyString(), any(), any());
     }
 
 //    @After
@@ -139,16 +155,14 @@ public abstract class AbstractNodeTest<N extends AbstractNode, C extends Abstrac
     }
 
     protected <M extends Message> M ensureMessageOut(String recipient, Class<M> messageClass, Object expected) throws Exception {
-        final ArgumentCaptor<Message> captor = ArgumentCaptor.forClass(Message.class);
-
+        // Since we need to capture the only sutable invocation despite the invocation order/seqno, Captors aren't working in this case
+        final TestUtils.MessageMatcher matcher = TestUtils.message(messageClass, expected);
         verify(communicationContext, after(1000)).send(
                 eq(recipient),
-                captor.capture()
+                (Message)argThat(matcher)
         );
 
-        final Message m = captor.getValue();
-        assertThat( m, TestUtils.message(messageClass, expected));
-        return (M) m;
+        return (M) matcher.getActual();
     }
 
     protected void ensureStateChanged(String to) {
@@ -172,10 +186,22 @@ public abstract class AbstractNodeTest<N extends AbstractNode, C extends Abstrac
     }
 
     protected void simulateMessageIn(String recipient, Message.MessageBuilder<?,?> builder) throws Exception {
+        try {
+            builder.getSender();
+        } catch (IllegalStateException ex) {
+            builder.setSender("Anonymous");
+        }
+
         final Message msg = builder.build();
         final byte msgCode = AbstractTransport.getMessageCodeFor(msg);
         final Messages.MessageTypes mt = Messages.MessageTypes.valueOf(msgCode);
 
         nodeContext.onMessage(recipient, mt, msg);
+        verify(nodeContext).onMessage(eq(recipient), eq(mt), argThat(TestUtils.message(msg.getClass(), msg)));
+    }
+
+    protected void ensureThatNoUnexpectedMessages() throws Exception {
+        Mockito.verify(nodeContext, TestUtils.zeroInteractions()).onMessage(Mockito.anyString(), Mockito.any(), Mockito.any());
+        Mockito.verify(this.communicationContext, TestUtils.zeroInteractions()).send(Mockito.anyString(), Mockito.any());
     }
 }

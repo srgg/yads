@@ -21,6 +21,7 @@ package com.github.srgg.yads.impl.api.context;
 
 import java.util.Arrays;
 
+import com.github.srgg.yads.api.messages.ChainInfoResponse;
 import com.github.srgg.yads.api.messages.ControlMessage;
 
 /**
@@ -32,4 +33,5 @@ public interface MasterExecutionContext extends ExecutionContext {
     }
 
     void manageNode(ControlMessage.Builder builder, Iterable<String> nodeIds) throws Exception;
+    void notifyAboutChainInfo(ChainInfoResponse.Builder builder, String nodeId) throws Exception;
 }
