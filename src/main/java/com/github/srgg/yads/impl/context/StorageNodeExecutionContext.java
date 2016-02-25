@@ -21,6 +21,7 @@ package com.github.srgg.yads.impl.context;
 
 import com.github.srgg.yads.api.messages.*;
 import com.github.srgg.yads.impl.AbstractExecutionRuntime;
+import com.github.srgg.yads.impl.ChainProcessingInfo;
 import com.github.srgg.yads.impl.StorageNode;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 import com.github.srgg.yads.impl.api.context.OperationContext;
@@ -74,9 +75,15 @@ public class StorageNodeExecutionContext extends AbstractExecutionRuntime<Storag
         @Override
         public final void ackOperation(final R result) {
             try {
+                if (ChainProcessingInfo.didProcessingStart(operation())) {
+                    ChainProcessingInfo.completeProcessing(operation(), ctx);
+                }
                 acknowledgeOp.acknowledge(ctx, operation, result);
             } catch (Exception ex) {
                 ctx.logger().error("Operation acknowledgement was failed", ex);
+                if (ChainProcessingInfo.didProcessingStart(operation())) {
+                    ChainProcessingInfo.completeProcessing(operation(), ctx);
+                }
             }
         }
 
@@ -84,6 +91,9 @@ public class StorageNodeExecutionContext extends AbstractExecutionRuntime<Storag
         public void failureOperation(final Exception ex) {
             ctx.logger().error(MessageUtils.dumpMessage(operation,
                     "[ACK-FAILED:%s]  '%s'...", operation.getSender(), operation.getId().toString()), ex);
+            if (ChainProcessingInfo.didProcessingStart(operation())) {
+                ChainProcessingInfo.completeProcessing(operation(), ctx);
+            }
         }
     }
 
@@ -98,6 +108,7 @@ public class StorageNodeExecutionContext extends AbstractExecutionRuntime<Storag
                 new StorageOperationResponse.Builder()
                     .setRid(op.getId())
                     .setObject(r)
+                    .putAllMeta(op.getMeta())
         ));
     }
 
@@ -172,6 +183,8 @@ public class StorageNodeExecutionContext extends AbstractExecutionRuntime<Storag
 
             case StorageOperationRequest:
                 final StorageOperationRequest sor = (StorageOperationRequest) message;
+                ChainProcessingInfo.startProcessing(message, this);
+
                 node().onStorageRequest(sor);
                 break;
 

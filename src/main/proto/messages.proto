@@ -37,3 +37,7 @@ enum NodeType {
     Client = 2;
 }
 
+enum SystemMeta {
+    ProcessingChain = 0;
+}
+

@@ -23,13 +23,11 @@ import com.github.srgg.yads.api.ActivationAware;
 import com.github.srgg.yads.api.Identifiable;
 import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.Message;
-import com.github.srgg.yads.impl.AbstractNode;
-import com.github.srgg.yads.impl.AbstractExecutionRuntime;
-import com.github.srgg.yads.impl.MasterNode;
-import com.github.srgg.yads.impl.StorageNode;
+import com.github.srgg.yads.impl.*;
 import com.github.srgg.yads.impl.api.Chain;
 import com.github.srgg.yads.impl.api.context.ExecutionContext;
 import com.github.srgg.yads.impl.api.context.StorageExecutionContext.StorageState;
+import com.github.srgg.yads.impl.context.ClientExecutionContextImpl;
 import com.github.srgg.yads.impl.context.MasterNodeExecutionContext;
 import com.github.srgg.yads.impl.context.StorageNodeExecutionContext;
 import com.github.srgg.yads.impl.util.InMemoryStorage;
@@ -141,6 +139,16 @@ public final class LocalRuntime implements ActivationAware {
         } finally {
             rt.stateChanged(State.STOPPED.name());
         }
+    }
+
+    public ClientImpl createClient(final String id) throws Exception {
+        final ClientImpl client = new ClientImpl(id);
+        final ClientExecutionContextImpl ctx = new ClientExecutionContextImpl(transport, client);
+
+        client.configure(ctx);
+        client.start();
+
+        return client;
     }
 
     public StorageNode createStorageNode(final String nodeId) throws Exception {
@@ -363,5 +371,4 @@ public final class LocalRuntime implements ActivationAware {
             return "local";
         }
     }
-
 }

@@ -21,7 +21,9 @@ package com.github.srgg.yads;
 
 import com.github.srgg.yads.api.messages.NodeStatus;
 import com.github.srgg.yads.api.messages.StorageOperationRequest;
+import com.github.srgg.yads.impl.ChainProcessingInfo;
 import org.junit.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import com.github.srgg.yads.api.IStorage;
 import com.github.srgg.yads.api.messages.ControlMessage;
@@ -40,6 +42,7 @@ import static org.mockito.Mockito.*;
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
 public class StorageNodeTest extends AbstractNodeTest<StorageNode, StorageNodeExecutionContext> {
+    private final static String NODE_ID = "node1";
     @Mock
     private OperationContext operationContext;
 
@@ -54,17 +57,18 @@ public class StorageNodeTest extends AbstractNodeTest<StorageNode, StorageNodeEx
                     .setType(StorageOperationRequest.OperationType.Put)
                     .setObject("42")
                     .build(),
+
             new StorageOperationRequest.Builder()
                     .setId(UUID.randomUUID())
                     .setSender("Anonymous")
                     .setKey("m2")
                     .setType(StorageOperationRequest.OperationType.Get)
                     .build()
-    };
+        };
 
     @Override
     protected StorageNode createNode() {
-        return new StorageNode("node1", storage);
+        return new StorageNode(NODE_ID, storage);
     }
 
     @Override
@@ -196,5 +200,69 @@ public class StorageNodeTest extends AbstractNodeTest<StorageNode, StorageNodeEx
         verify(operationContext, times(allOperations.length)).ackOperation(any());
 
         stopNodeAndVerify();
+    }
+
+    @Test
+    public void checkProcessingInfoPopulation() throws Exception {
+        final String clientId = "client-42";
+        final UUID requestId = UUID.randomUUID();
+        final long testStartedAt = System.currentTimeMillis();
+
+        // -- spinup storage node
+        startNodeAndVerify();
+
+
+        // configuring as a single node in the chain, since chain processing is out of the scope of this case
+        simulateMessageIn(
+                new ControlMessage.Builder()
+                        .setRoles(EnumSet.of(ControlMessage.Role.Head, ControlMessage.Role.Tail))
+                        .setState(StorageState.RUNNING)
+        );
+
+        // -- incoming storage operation
+        simulateMessageIn(
+                new StorageOperationRequest.Builder(requestId)
+                        .setSender(clientId)
+                        .setKey("k42")
+                        .setType(StorageOperationRequest.OperationType.Put)
+                        .setObject("1")
+        );
+
+        // ---------- verification
+
+        // checking that storage operation was procesed without unexpected side effects
+        final ArgumentCaptor<StorageOperationRequest> captor = ArgumentCaptor.forClass(StorageOperationRequest.class);
+        verify(storage, after(200)).process(captor.capture());
+        verify(operationContext).ackOperation(any());
+
+        verifyNoMoreInteractions(storage);
+
+        final StorageOperationRequest op = captor.getValue();
+        assertThat(op,
+                TestUtils.message(StorageOperationRequest.class,
+                        "{sender: '%s', id: '%s', type: 'Put', key: 'k42'}",
+                        clientId, requestId)
+            );
+
+        // check proper generation/population of ChainProcessingInfo
+        final ChainProcessingInfo pi = ChainProcessingInfo.getProcessingInfo(op);
+
+        assertNotNull(pi);
+
+        assertEquals(clientId, pi.getClient());
+        assertEquals(requestId, pi.getOriginalRId());
+
+        assertEquals(1, pi.getProcessingInfos().size());
+
+        final ChainProcessingInfo.ProcessingInfo npi = pi.getProcessingInfos().get(0);
+        assertEquals(NODE_ID, npi.getId());
+
+        final Long startedAt = npi.getStartedAt();
+        assertNotNull(startedAt);
+        assertTrue(startedAt > testStartedAt);
+
+//        final Long completedAt = npi.getCompletedAt();
+//        assertNotNull(completedAt);
+//        assertTrue(completedAt > startedAt);
     }
 }
