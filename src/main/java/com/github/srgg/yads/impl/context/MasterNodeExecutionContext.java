@@ -19,15 +19,12 @@
  */
 package com.github.srgg.yads.impl.context;
 
-import com.github.srgg.yads.api.messages.Message;
+import com.github.srgg.yads.api.messages.*;
 import com.github.srgg.yads.impl.AbstractExecutionRuntime;
 import com.github.srgg.yads.impl.MasterNode;
 import com.github.srgg.yads.impl.api.context.CommunicationContext;
 import com.github.srgg.yads.impl.api.context.MasterExecutionContext;
-import com.github.srgg.yads.impl.util.MessageUtils;
 import com.github.srgg.yads.api.message.Messages;
-import com.github.srgg.yads.api.messages.ControlMessage;
-import com.github.srgg.yads.api.messages.NodeStatus;
 
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
@@ -43,11 +40,17 @@ public class MasterNodeExecutionContext extends AbstractExecutionRuntime<MasterN
     @Override
     public void manageNode(final ControlMessage.Builder builder, final Iterable<String> nodeIds) throws Exception {
         for (String id: nodeIds) {
-            final ControlMessage m = sendMessage(id, builder);
-            logger().info(MessageUtils.dumpMessage(m,
-                    "[CTRL:%s -> %s]  '%s'...", m.getSender(), id, m.getId().toString())
-            );
+/*            final ControlMessage m =*/ sendMessage(id, builder);
+//            logger().info(MessageUtils.dumpMessage(m,
+//                    "[CTRL:%s -> %s]  '%s'...", m.getSender(), id, m.getId().toString())
+//            );
         }
+    }
+
+    @Override
+    public void notifyAboutChainInfo(final ChainInfoResponse.Builder builder,
+                                     final String nodeId) throws Exception {
+        sendMessage(nodeId, builder);
     }
 
     @Override
@@ -57,6 +60,11 @@ public class MasterNodeExecutionContext extends AbstractExecutionRuntime<MasterN
             case NodeStatus:
                 final NodeStatus status = (NodeStatus) message;
                 node().onNodeState(status.getSender(), status.getNodeType(), status.getStatus());
+                break;
+
+            case ChainInfoRequest:
+                final ChainInfoRequest request = (ChainInfoRequest) message;
+                node().onChainInfoRequest(request.getSender());
                 break;
 
             default:

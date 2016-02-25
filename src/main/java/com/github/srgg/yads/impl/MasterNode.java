@@ -19,6 +19,7 @@
  */
 package com.github.srgg.yads.impl;
 
+import com.github.srgg.yads.api.messages.ChainInfoResponse;
 import com.github.srgg.yads.impl.api.Chain;
 import com.github.srgg.yads.impl.api.context.MasterExecutionContext;
 import com.github.srgg.yads.impl.api.context.StorageExecutionContext.StorageState;
@@ -29,7 +30,9 @@ import com.github.srgg.yads.impl.api.context.Subscribe;
 
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
@@ -187,6 +190,20 @@ public class MasterNode extends AbstractNode<MasterExecutionContext> {
                 chain.handleStateChanged(nodeId, oldState, newState);
             }
         }
+    }
+
+    @Subscribe
+    public void onChainInfoRequest(final String nodeId) throws Exception {
+        final List<Chain.INodeInfo<NodeInfo>> lst = chain.asList();
+
+        context().notifyAboutChainInfo(
+                new ChainInfoResponse.Builder()
+                    .addAllChain(lst.stream()
+                        .map(e -> e.getId())
+                        .collect(Collectors.toList())
+                    ),
+                nodeId
+            );
     }
 
     protected static class StateAwareChain extends GenericChain<NodeInfo> {

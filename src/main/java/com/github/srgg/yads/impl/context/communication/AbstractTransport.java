@@ -27,6 +27,7 @@ import com.github.srgg.yads.impl.api.context.PayloadMapper;
 import com.github.srgg.yads.impl.util.GenericSink;
 import com.github.srgg.yads.impl.util.MessageUtils;
 import com.github.srgg.yads.impl.util.TaggedLogger;
+import com.google.common.annotations.VisibleForTesting;
 import org.inferred.freebuilder.shaded.org.apache.commons.lang3.ClassUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,15 +69,7 @@ public abstract class AbstractTransport extends GenericSink<CommunicationContext
         doSend(message.getSender(), recipient, bb);
 
         final Messages.MessageTypes mt = Messages.MessageTypes.valueOf(msgCode);
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                    MessageUtils.dumpMessage(message, "[MSG Out] '%s' -> '%s': %s@%s",
-                            message.getSender(), recipient, mt, message.getId())
-                );
-        } else {
-            logger.debug("[MSG Out] '{}' -> '{}': {}@{}",
-            message.getSender(),  recipient, mt, message.getId());
-        }
+        dumpMessage(logger, false, recipient, message, mt);
     }
 
     protected abstract void doSend(String sender, String recipient, ByteBuffer bb) throws Exception;
@@ -109,14 +102,7 @@ public abstract class AbstractTransport extends GenericSink<CommunicationContext
         final byte msgCode = getMessageCodeFor(msg);
         final Messages.MessageTypes mt = Messages.MessageTypes.valueOf(msgCode);
 
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                    MessageUtils.dumpMessage(msg, "[MSG IN] '%s' -> '%s': %s@%s",
-                            msg.getSender(),  recipient, mt, msg.getId())
-            );
-        } else {
-            logger.debug("[MSG IN]  '{}' -> '{}': {}@{}", sender, recipient, mt, msg.getId());
-        }
+        dumpMessage(logger, true, recipient, msg, mt);
 
         boolean isHandled = true;
         if (recipient != null) {
@@ -159,8 +145,9 @@ public abstract class AbstractTransport extends GenericSink<CommunicationContext
         return b;
     }
 
+    @VisibleForTesting
     @edu.umd.cs.findbugs.annotations.SuppressWarnings("NP_NULL_ON_SOME_PATH")
-    protected static byte getMessageCodeFor(final Message msg) {
+    public static byte getMessageCodeFor(final Message msg) {
         final List<Class<?>> interfaces =  ClassUtils.getAllInterfaces(msg.getClass());
 
         Annotation mc = null;
@@ -173,6 +160,33 @@ public abstract class AbstractTransport extends GenericSink<CommunicationContext
 
         checkState(mc != null, "Can't get message code, message '%s' is not marked with @MessageCode", msg.getClass().getSimpleName());
         return (byte) ((MessageCode) mc).value().getNumber();
+    }
+
+    @VisibleForTesting
+    public static void dumpMessage(final Logger logger, final boolean incoming,
+                                   final String recipient, final Message msg) {
+
+        final byte msgCode = AbstractTransport.getMessageCodeFor(msg);
+        final Messages.MessageTypes mt = Messages.MessageTypes.valueOf(msgCode);
+
+        dumpMessage(logger, incoming, recipient, msg, mt);
+    }
+
+    @VisibleForTesting
+    private static void dumpMessage(final Logger logger, final boolean incoming, final String recipient,
+                                    final Message msg, final Messages.MessageTypes mt) {
+
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                    MessageUtils.dumpMessage(msg, "[MSG %s] '%s' -> '%s': %s@%s",
+                            incoming ? "IN" : "OUT",
+                            msg.getSender(), recipient, mt, msg.getId())
+            );
+        } else {
+            logger.debug("[MSG {}] '{}' -> '{}': {}@{}",
+                    incoming ? "IN" : "OUT",
+                    msg.getSender(),  recipient, mt, msg.getId());
+        }
     }
 
     private Class<? extends Message> getMessageClass(final byte msgCode) {

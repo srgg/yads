@@ -34,5 +34,5 @@
         <appender-ref ref="STDOUT" />
     </root>
 
-    <logger name="com.github.srgg.yads" level="DEBUG"/>
+    <logger name="com.github.srgg.yads" level="TRACE"/>
 </configuration>

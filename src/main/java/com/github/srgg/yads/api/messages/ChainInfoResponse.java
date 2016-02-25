@@ -19,34 +19,24 @@
  */
 package com.github.srgg.yads.api.messages;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.github.srgg.yads.api.message.Messages;
 import org.inferred.freebuilder.FreeBuilder;
 import org.inferred.freebuilder.shaded.com.google.common.annotations.VisibleForTesting;
 
-import javax.annotation.Nullable;
+import java.util.Set;
 import java.util.UUID;
 
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
-@MessageCode(Messages.MessageTypes.StorageOperationResponse)
-@JsonDeserialize(builder = StorageOperationResponse.Builder.class)
+@MessageCode(Messages.MessageTypes.ChainInfoResponse)
+@JsonDeserialize(builder = ChainInfoResponse.Builder.class)
 @FreeBuilder
-public interface StorageOperationResponse extends Message {
-    /**
-     *
-     * @return request Id
-     */
-    @JsonProperty("rid")
-    UUID getRid();
+public interface ChainInfoResponse extends Message {
+    Set<String> getChain();
 
-    @Nullable
-    @JsonProperty("object")
-    Object getObject();
-
-    class Builder extends StorageOperationResponse_Builder implements Message.MessageBuilder<StorageOperationResponse, StorageOperationResponse_Builder> {
+    class Builder extends ChainInfoResponse_Builder implements Message.MessageBuilder<ChainInfoResponse, ChainInfoResponse_Builder> {
         public Builder() {
             setId(UUID.randomUUID());
         }

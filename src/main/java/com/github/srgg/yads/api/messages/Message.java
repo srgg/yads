@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.srgg.yads.api.Identifiable;
 import com.google.common.annotations.VisibleForTesting;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -36,10 +37,13 @@ public interface Message extends Identifiable<UUID> {
     @Override
     UUID getId();
 
+    Map<String, Object> getMeta();
+
     interface MessageBuilder<M extends Message, B> {
         B setId(UUID id);
         UUID getId();
 
+        String getSender();
         MessageBuilder setSender(String id);
 
         M build();

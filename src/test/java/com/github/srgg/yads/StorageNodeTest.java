@@ -21,19 +21,11 @@ package com.github.srgg.yads;
 
 import com.github.srgg.yads.api.messages.NodeStatus;
 import com.github.srgg.yads.api.messages.StorageOperationRequest;
-import org.junit.Before;
-import org.junit.FixMethodOrder;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.MethodSorters;
+import com.github.srgg.yads.impl.ChainProcessingInfo;
+import org.junit.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.Mockito;
-import org.powermock.api.mockito.PowerMockito;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
 import com.github.srgg.yads.api.IStorage;
-import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.ControlMessage;
 import com.github.srgg.yads.impl.context.StorageNodeExecutionContext;
 import com.github.srgg.yads.impl.api.context.StorageExecutionContext.StorageState;
@@ -49,24 +41,13 @@ import static org.mockito.Mockito.*;
 /**
  *  @author Sergey Galkin <srggal at gmail dot com>
  */
-@RunWith(PowerMockRunner.class)
-@PrepareForTest({StorageNode.class})
-@FixMethodOrder(MethodSorters.JVM)
-public class StorageNodeTest {
-    @Rule
-    public FancyTestWatcher watcher = new FancyTestWatcher();
-
-    @Mock
-    private CommunicationContext communicationContext;
-
+public class StorageNodeTest extends AbstractNodeTest<StorageNode, StorageNodeExecutionContext> {
+    private final static String NODE_ID = "node1";
     @Mock
     private OperationContext operationContext;
 
     @Mock
     private IStorage storage;
-
-    private StorageNode node;
-    private StorageNodeExecutionContext nodeContext;
 
     private final StorageOperationRequest[] allOperations = {
             new StorageOperationRequest.Builder()
@@ -76,41 +57,29 @@ public class StorageNodeTest {
                     .setType(StorageOperationRequest.OperationType.Put)
                     .setObject("42")
                     .build(),
+
             new StorageOperationRequest.Builder()
                     .setId(UUID.randomUUID())
                     .setSender("Anonymous")
                     .setKey("m2")
                     .setType(StorageOperationRequest.OperationType.Get)
                     .build()
-    };
+        };
+
+    @Override
+    protected StorageNode createNode() {
+        return new StorageNode(NODE_ID, storage);
+    }
+
+    @Override
+    protected StorageNodeExecutionContext createNodeContext(CommunicationContext ctx, StorageNode node) {
+        return new StorageNodeExecutionContext(ctx, node);
+    }
 
     @Before
     public void setup() throws Exception {
-        JsonUnitInitializer.initialize();
-
-        // TODO: figure out how initialization can be refactored with @InjectMocks
-        final StorageNode n = new StorageNode("node1", storage);
-        node = spy(n);
-
-        nodeContext = new StorageNodeExecutionContext(communicationContext, node);
-        nodeContext = spy(nodeContext);
-        n.configure(nodeContext);
-        node.configure(nodeContext);
-
-        Mockito.reset(node);
-        verifyZeroInteractions(nodeContext);
+        super.setup();
         verifyZeroInteractions(storage);
-        verifyZeroInteractions(node);
-
-        assertEquals("node1", node.getId());
-        assertEquals("NEW", node.getState());
-
-        //verify(node, atLeastOnce()).getId();
-        //verify(node).getState();
-
-        verify(node).getState();
-        verify(nodeContext).getState();
-        verifyZeroInteractions(nodeContext, storage, node);
 
         doAnswer(invocation -> {
                 final StorageOperationRequest op = (StorageOperationRequest) invocation.getArguments()[0];
@@ -120,44 +89,23 @@ public class StorageNodeTest {
 
     }
 
-    @Before
-    public void shutdown() {
-//        Mockito.verifyNoMoreInteractions(nodeContext, storage, node);
-//        verifyNoMoreInteractions(nodeContext, storage, node);
-    }
-
     @Test
     public void checkBehavior_of_StartAndStop() throws Exception {
         startNodeAndVerify();
         stopNodeAndVerify();
     }
 
-    private void manageNode(ControlMessage.Builder builder) {
-        final ControlMessage msg = builder
-                .setSender("Anonymous")
-                .build();
-
-        try {
-            nodeContext.onMessage(node.getId(), Messages.MessageTypes.ControlMessage, msg);
-        } catch (Exception e) {
-            if (e instanceof RuntimeException) {
-                throw (RuntimeException)e;
-            }
-            throw new RuntimeException(e);
-        }
-    }
-
     @Test
     public void checkBehavior_of_StateChangeUsingControlMessage() throws Exception {
         startNodeAndVerify();
 
-        manageNode(
+        simulateMessageIn(
             new ControlMessage.Builder()
                 .setState(StorageState.RUNNING)
         );
 
         assertEquals("RUNNING", node.getState());
-        PowerMockito.verifyPrivate(node).invoke("onStateChanged", "STARTED", "RUNNING");
+        verify(node).onStateChanged("STARTED", "RUNNING");
         stopNodeAndVerify();
     }
 
@@ -178,7 +126,7 @@ public class StorageNodeTest {
         // --
         for (String s: states) {
             if (!node.getState().equals(s)) {
-                manageNode(
+                simulateMessageIn(
                     new ControlMessage.Builder()
                             .setState(s)
                 );
@@ -207,14 +155,12 @@ public class StorageNodeTest {
          * If due to whatever reason node state was changed locally,
          * the new state should be propagated to the leader immediately
          */
-        verify(communicationContext, after(100)).send(
-                eq(CommunicationContext.LEADER_NODE),
-                argThat( TestUtils.message(NodeStatus.class,
-                        "{sender: 'node1',"
-                            + "type: 'Storage',"
-                            + "status: 'FAILED'"
-                        + "}"))
-            );
+        ensureMessageOut(CommunicationContext.LEADER_NODE, NodeStatus.class,
+                "{sender: 'node1',"
+                        + "type: 'Storage',"
+                        + "status: 'FAILED'"
+                        + "}"
+        );
     }
 
     @Test
@@ -222,7 +168,7 @@ public class StorageNodeTest {
         verifyZeroInteractions(storage);
         startNodeAndVerify();
 
-        manageNode(
+        simulateMessageIn(
             new ControlMessage.Builder()
                     .setPrevNode("PREV-NODE")
                     .setState(StorageState.RECOVERING)
@@ -236,13 +182,13 @@ public class StorageNodeTest {
         verify(storage, after(2000).never()).process(any());
         verifyZeroInteractions(storage);
 
-        manageNode(
+        simulateMessageIn(
                 new ControlMessage.Builder()
                         .setState(StorageState.RECOVERED)
         );
 
         // should process all previously queued operations
-        manageNode(
+        simulateMessageIn(
             new ControlMessage.Builder()
                     .setState(StorageState.RUNNING)
         );
@@ -256,20 +202,67 @@ public class StorageNodeTest {
         stopNodeAndVerify();
     }
 
-    private void startNodeAndVerify() throws Exception {
-        node.start();
-        verify(nodeContext).stateChanged("STARTED");
+    @Test
+    public void checkProcessingInfoPopulation() throws Exception {
+        final String clientId = "client-42";
+        final UUID requestId = UUID.randomUUID();
+        final long testStartedAt = System.currentTimeMillis();
 
-        assertEquals("STARTED", node.getState());
-        PowerMockito.verifyPrivate(node).invoke("onStateChanged", "NEW", "STARTED");
-    }
+        // -- spinup storage node
+        startNodeAndVerify();
 
-    private void stopNodeAndVerify() throws Exception {
-        final String state = node.getState();
-        node.stop();
-        verify(nodeContext).stateChanged("STOPPED");
 
-        assertEquals("STOPPED", node.getState());
-        PowerMockito.verifyPrivate(node).invoke("onStateChanged", state, "STOPPED");
+        // configuring as a single node in the chain, since chain processing is out of the scope of this case
+        simulateMessageIn(
+                new ControlMessage.Builder()
+                        .setRoles(EnumSet.of(ControlMessage.Role.Head, ControlMessage.Role.Tail))
+                        .setState(StorageState.RUNNING)
+        );
+
+        // -- incoming storage operation
+        simulateMessageIn(
+                new StorageOperationRequest.Builder(requestId)
+                        .setSender(clientId)
+                        .setKey("k42")
+                        .setType(StorageOperationRequest.OperationType.Put)
+                        .setObject("1")
+        );
+
+        // ---------- verification
+
+        // checking that storage operation was procesed without unexpected side effects
+        final ArgumentCaptor<StorageOperationRequest> captor = ArgumentCaptor.forClass(StorageOperationRequest.class);
+        verify(storage, after(200)).process(captor.capture());
+        verify(operationContext).ackOperation(any());
+
+        verifyNoMoreInteractions(storage);
+
+        final StorageOperationRequest op = captor.getValue();
+        assertThat(op,
+                TestUtils.message(StorageOperationRequest.class,
+                        "{sender: '%s', id: '%s', type: 'Put', key: 'k42'}",
+                        clientId, requestId)
+            );
+
+        // check proper generation/population of ChainProcessingInfo
+        final ChainProcessingInfo pi = ChainProcessingInfo.getProcessingInfo(op);
+
+        assertNotNull(pi);
+
+        assertEquals(clientId, pi.getClient());
+        assertEquals(requestId, pi.getOriginalRId());
+
+        assertEquals(1, pi.getProcessingInfos().size());
+
+        final ChainProcessingInfo.ProcessingInfo npi = pi.getProcessingInfos().get(0);
+        assertEquals(NODE_ID, npi.getId());
+
+        final Long startedAt = npi.getStartedAt();
+        assertNotNull(startedAt);
+        assertTrue(startedAt > testStartedAt);
+
+//        final Long completedAt = npi.getCompletedAt();
+//        assertNotNull(completedAt);
+//        assertTrue(completedAt > startedAt);
     }
 }

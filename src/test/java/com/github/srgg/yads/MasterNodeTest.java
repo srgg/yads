@@ -19,155 +19,141 @@
  */
 package com.github.srgg.yads;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.srgg.yads.api.messages.ChainInfoRequest;
+import com.github.srgg.yads.api.messages.ChainInfoResponse;
+import com.github.srgg.yads.api.messages.NodeStatus;
+import com.github.srgg.yads.impl.api.context.CommunicationContext;
+import com.github.srgg.yads.impl.context.MasterNodeExecutionContext;
 import org.junit.*;
 import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
-import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 import com.github.srgg.yads.api.message.Messages;
 import com.github.srgg.yads.api.messages.ControlMessage;
-import com.github.srgg.yads.impl.api.context.MasterExecutionContext;
 import com.github.srgg.yads.impl.MasterNode;
-
-import java.util.*;
-
-import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.*;
 
 @RunWith(MockitoJUnitRunner.class)
 @FixMethodOrder(MethodSorters.JVM)
-public class MasterNodeTest {
-    @Rule
-    public FancyTestWatcher watcher = new FancyTestWatcher();
+public class MasterNodeTest extends AbstractNodeTest<MasterNode, MasterNodeExecutionContext> {
 
-    @Mock
-    private MasterExecutionContext nodeContext;
-    private String nodeState = "NEW";
-
-    private MasterNode masterNode;
-    private static ObjectMapper mapper;
-
-    @BeforeClass
-    public static void initializeJsonUnit() {
-        mapper = JsonUnitInitializer.initialize();
+    @Override
+    protected MasterNode createNode() {
+        return new MasterNode("master-1");
     }
 
-    @Before
-    public void setup() throws Exception {
-        masterNode = new MasterNode("master-1");
-        masterNode.configure(nodeContext);
-        masterNode = spy(masterNode);
+    @Override
+    protected MasterNodeExecutionContext createNodeContext(CommunicationContext ctx, MasterNode node) {
+        return new MasterNodeExecutionContext(ctx, node);
+    }
 
-        doAnswer(invocation -> nodeState).when(nodeContext).getState();
+    @Test
+    public void sendNoChainInfo_EvenIf_NoChain() throws Exception {
+        verifyChain("");
+        simulateMessageIn(new ChainInfoRequest.Builder()
+                .setSender("client-1")
+            );
 
-        doAnswer(invocation -> nodeState = (String)invocation.getArguments()[0])
-        .when(nodeContext).changeState(anyString());
+        ensureMessageOut("client-1", ChainInfoResponse.class,
+                "{" +
+                    "sender: 'master-1', " +
+                    "chain: []" +
+                "}");
 
-        verifyZeroInteractions(nodeContext, masterNode);
-        assertEquals("master-1", masterNode.getId());
-        assertEquals("NEW", masterNode.getState());
-        verify(nodeContext).getState();
-
-        //verify(masterNode, atLeastOnce()).getId();
-        //verify(masterNode).getState();
-
-
-        masterNode.start();
-        verify(nodeContext).changeState("STARTED");
-        assertEquals("STARTED", masterNode.getState());
-        verify(nodeContext, times(2)).getState();
-
-        verifyZeroInteractions(nodeContext);
+        ensureThatNoUnexpectedMessages();
     }
 
     @Test
     public void createChain() throws Exception {
 
         // -- 1st node started
-        masterNode.onNodeState("node-1", Messages.NodeType.Storage, "STARTED");
+        simulateMessageIn(
+                new NodeStatus.Builder()
+                        .setSender("node-1")
+                        .setNodeType(Messages.NodeType.Storage)
+                        .setStatus("STARTED")
+            );
+
         verifyChain("node-1");
 
         // Since it is the first node there is no node to recovery from,
         // therefore the first node should be in RUNNING state
-        verifyManageNode("node-1", "{" +
-                "type: ['SetRole', 'SetChain', 'SetState'], " +
-                "roles: ['Head', 'Tail']," +
-                "state:'RUNNING'," +
-                "prevNode: null," +
-                "nextNode: null" +
+        verifyManageNode("node-1",
+                "{" +
+                    "type: ['SetRole', 'SetChain', 'SetState'], " +
+                    "roles: ['Head', 'Tail']," +
+                    "state:'RUNNING'," +
+                    "prevNode: null," +
+                    "nextNode: null" +
                 "}");
 
-        Mockito.verifyZeroInteractions(nodeContext);
-
+        ensureThatNoUnexpectedMessages();
 
         // -- 2nd node started
-        masterNode.onNodeState("node-2", Messages.NodeType.Storage, "STARTED");
+        simulateMessageIn(
+                new NodeStatus.Builder()
+                        .setSender("node-2")
+                        .setNodeType(Messages.NodeType.Storage)
+                        .setStatus("STARTED")
+        );
         verifyChain("node-1 - node-2 ");
 
-        verifyManageNode("node-2", "{" +
-                "type: ['SetRole', 'SetChain', 'SetState'], " +
-                "roles: ['Tail']," +
-                "state:'RECOVERING'," +
-                "prevNode: 'node-1'," +
-                "nextNode: null" +
-            "}");
+        verifyManageNode("node-2",
+                "{" +
+                    "type: ['SetRole', 'SetChain', 'SetState'], " +
+                    "roles: ['Tail']," +
+                    "state:'RECOVERING'," +
+                    "prevNode: 'node-1'," +
+                    "nextNode: null" +
+                "}"
+            );
 
-        verifyManageNode("node-1", "{" +
-                "type: ['SetRole', 'SetChain']," +
-                "roles: ['Head']," +
-                "nextNode: 'node-2'," +
-                "prevNode: null" +
-            "}");
 
-        Mockito.verifyZeroInteractions(nodeContext);
+        verifyManageNode("node-1",
+                "{" +
+                    "type: ['SetRole', 'SetChain']," +
+                    "roles: ['Head']," +
+                    "nextNode: 'node-2'," +
+                    "prevNode: null" +
+                "}"
+            );
+
+        ensureThatNoUnexpectedMessages();
 
 
         // -- 3rd node started
-        masterNode.onNodeState("node-3", Messages.NodeType.Storage, "STARTED");
+        simulateMessageIn(
+                new NodeStatus.Builder()
+                        .setSender("node-3")
+                        .setNodeType(Messages.NodeType.Storage)
+                        .setStatus("STARTED")
+        );
         verifyChain("node-1 - node-2 - node-3");
 
-        verifyManageNode("node-3", "{" +
-                "type: ['SetRole', 'SetChain', 'SetState'], " +
-                "roles: ['Tail']," +
-                "state:'RECOVERING'," +
-                "prevNode: 'node-2'," +
-                "nextNode: null" +
+        verifyManageNode("node-3",
+                "{" +
+                    "type: ['SetRole', 'SetChain', 'SetState'], " +
+                    "roles: ['Tail']," +
+                    "state:'RECOVERING'," +
+                    "prevNode: 'node-2'," +
+                    "nextNode: null" +
                 "}");
 
-        verifyManageNode("node-2", "{" +
-                "type: ['SetRole', 'SetChain']," +
-                "roles: ['Middle']," +
-                "nextNode: 'node-3'," +
-                "prevNode: 'node-1'" +
+        verifyManageNode("node-2",
+                "{" +
+                    "type: ['SetRole', 'SetChain']," +
+                    "roles: ['Middle']," +
+                    "nextNode: 'node-3'," +
+                    "prevNode: 'node-1'" +
                 "}");
 
-        Mockito.verifyZeroInteractions(nodeContext);
+        ensureThatNoUnexpectedMessages();
     }
 
-    // TODO: refactor to give human readable error with clear differences
-    private void verifyManageNode(String nodeId, String expected) {
-        try {
-            final Map<String, Object> values = mapper.readValue(expected, new TypeReference<HashMap<String, Object>>(){});
-
-            // apply defaults, if needed
-            if (!values.containsKey("sender")) {
-                values.put("sender", masterNode.getId());
-            }
-
-            verify(nodeContext, after(100)).manageNode(
-                    argThat(TestUtils.MessageBuilderMatcher.create(ControlMessage.Builder.class, values)),
-                    eq(nodeId));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    private void verifyManageNode(String nodeId, String expected) throws Exception {
+        ensureMessageOut(nodeId, ControlMessage.class, expected);
     }
 
     private void verifyChain(String expectedChain) {
-        TestUtils.verifyChain(masterNode.chain(), expectedChain);
+        TestUtils.verifyChain(node.chain(), expectedChain);
     }
 }

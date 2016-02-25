@@ -71,7 +71,7 @@ public class RuntimeTest {
         Thread.sleep(200);
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 5000)
     public void checkGentleChainCreation() throws Exception {
 
         rt.createMasterNode("master-1");
@@ -144,7 +144,7 @@ public class RuntimeTest {
         );
     }
 
-    @Test(timeout = 60000)
+    @Test(timeout = 5000)
     public void checkGentleReplication() throws Exception {
         rt.createMasterNode("master-21");
 

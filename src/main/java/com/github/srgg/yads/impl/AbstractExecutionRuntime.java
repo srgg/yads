@@ -44,7 +44,7 @@ import static com.google.common.base.Preconditions.checkState;
 public abstract class AbstractExecutionRuntime<N extends AbstractNode>
         implements CommunicationContext.MessageListener, ExecutionContext {
 
-    private boolean started;
+    private boolean running;
 
     private final Logger logger = new TaggedLogger(LoggerFactory.getLogger(getClass())) {
         @Override
@@ -59,7 +59,7 @@ public abstract class AbstractExecutionRuntime<N extends AbstractNode>
     private final N node;
     private final AtomicReference<String> state = new AtomicReference<>("NEW");
 
-    private int statusNotificationPeriod = 10;
+    private int statusNotificationPeriod = 10000;
     private ScheduledFuture stateNotifyFuture;
     private ScheduledExecutorService executor;
 
@@ -107,8 +107,8 @@ public abstract class AbstractExecutionRuntime<N extends AbstractNode>
 
         doStart();
 
-        started = true;
-        rescheduleStatusNotification(2, statusNotificationPeriod);
+        running = true;
+        rescheduleStatusNotification(500, statusNotificationPeriod);
         logger().info("has been STARTED");
     }
 
@@ -135,7 +135,7 @@ public abstract class AbstractExecutionRuntime<N extends AbstractNode>
 
         executor = null;
         messageContext.unregisterHandler(this);
-        started = false;
+        running = false;
         logger().info("has been STOPPED");
     }
 
@@ -145,21 +145,12 @@ public abstract class AbstractExecutionRuntime<N extends AbstractNode>
     protected void doStop() {
     }
 
-    protected void notifyAboutNodeStatus() {
+    protected void executeBgTaskImmediately() {
         rescheduleStatusNotification(0, statusNotificationPeriod);
     }
 
-    private void rescheduleStatusNotification(final long initialDelay, final long period) {
-        if (!started) {
-            logger.warn("CAN'T Reschedule Status Notification, runtime is not in running state.");
-            return;
-        }
-
-        if (stateNotifyFuture != null && !stateNotifyFuture.isCancelled()) {
-            stateNotifyFuture.cancel(true);
-        }
-
-        stateNotifyFuture = executor.scheduleAtFixedRate(() -> {
+    protected Runnable createBgTask() {
+        return () -> {
             try {
                 final String status = state.get();
                 final NodeStatus.Builder b = new NodeStatus.Builder()
@@ -170,7 +161,21 @@ public abstract class AbstractExecutionRuntime<N extends AbstractNode>
             } catch (Exception e) {
                 logger.error("Can't send status", e);
             }
-        }, initialDelay, period, TimeUnit.SECONDS);
+        };
+    }
+
+    protected void rescheduleStatusNotification(final long initialDelay, final long period) {
+        if (!running) {
+            logger.warn("CAN'T Reschedule Bg task, runtime is not in a running state.");
+            return;
+        }
+
+        if (stateNotifyFuture != null && !stateNotifyFuture.isCancelled()) {
+            stateNotifyFuture.cancel(true);
+        }
+
+        stateNotifyFuture = executor.scheduleAtFixedRate(
+                createBgTask(), initialDelay, period, TimeUnit.MILLISECONDS);
     }
 
     @Override
@@ -206,12 +211,12 @@ public abstract class AbstractExecutionRuntime<N extends AbstractNode>
     public void stateChanged(final String st) {
         switch (st) {
             case "STARTED":
-                checkState(!started, "Can't start node runtime '%s', it is already started", getId());
+                checkState(!running, "Can't start runtime '%s', it is already started", getId());
                 start();
                 break;
 
             case "STOPPED":
-                checkState(started, "Can't stop node runtime '%s', it is not started", getId());
+                checkState(running, "Can't stop runtime '%s', it is not started", getId());
                 stop();
                 break;
 

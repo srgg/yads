@@ -27,10 +27,17 @@ enum MessageTypes {
     StorageOperationResponse = 3;
     RecoveryRequest = 4;
     RecoveryResponse = 5;
+    ChainInfoRequest = 6;
+    ChainInfoResponse = 7;
 }
 
 enum NodeType {
     Storage = 0;
     Master = 1;
+    Client = 2;
+}
+
+enum SystemMeta {
+    ProcessingChain = 0;
 }
 

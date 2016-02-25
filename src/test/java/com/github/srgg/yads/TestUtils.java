@@ -26,6 +26,13 @@ import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import com.github.srgg.yads.impl.api.Chain;
 import org.hamcrest.Matcher;
+import org.mockito.exceptions.Reporter;
+import org.mockito.internal.invocation.InvocationMatcher;
+import org.mockito.internal.invocation.InvocationsFinder;
+import org.mockito.internal.verification.api.InOrderContext;
+import org.mockito.internal.verification.api.VerificationData;
+import org.mockito.invocation.Invocation;
+import org.mockito.verification.VerificationMode;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -90,13 +97,16 @@ public class TestUtils {
 
     // Format: 'head-node - middle-node1 - ..  - tail-node'
     protected static List<String> parseExpectedChainTemplate(String expectedChain) {
-        final List<String> values = new ArrayList<>(Arrays.asList(expectedChain.split("\\s-\\s")));
+        final List<String> splited= Arrays.asList(expectedChain.split("\\s-\\s"));
+        final List<String> values = new ArrayList<>(splited.size());
 
-        values.forEach(
+        splited.forEach(
                 s -> {
-                    final int idx = values.indexOf(s);
                     s = s.trim();
-                    values.set(idx, s);
+
+                    if (!s.isEmpty()) {
+                        values.add(s);
+                    }
                 }
         );
         return values;
@@ -111,6 +121,7 @@ public class TestUtils {
     public static class MessageMatcher extends BaseMatcher {
         private final Class clazz;
         private final Object ethalon;
+        private Object actual;
         private final ConfigurableJsonMatcher matcher;
 
 
@@ -123,6 +134,7 @@ public class TestUtils {
 
         @Override
         public boolean matches(Object item) {
+            actual = item;
             return item == null && ethalon == null
                     || item != null && clazz.isInstance(item) && matcher.matches(item);
         }
@@ -132,6 +144,10 @@ public class TestUtils {
             matcher.describeTo(description);
         }
 
+        public Object getActual() {
+            return actual;
+        }
+        
         public static MessageMatcher create(Class messageClass, Object expected) {
             return new MessageMatcher(messageClass, expected);
         }
@@ -176,5 +192,36 @@ public class TestUtils {
 
     public static <M extends Matcher> M message(Class messageClass, Object expected) {
         return (M) MessageMatcher.create(messageClass, expected);
+    }
+
+    public static <M extends Matcher> M message(Class messageClass, String jsonTemplate, Object... args) {
+        return (M) MessageMatcher.create(messageClass, String.format(jsonTemplate, args));
+    }
+
+    public static final class ZeroInteractions implements VerificationMode {
+        @Override
+        public void verify(final VerificationData data) {
+            final InvocationMatcher matcher = data.getWanted();
+            final InOrderContext ctx = new InOrderContext() {
+                @Override
+                public boolean isVerified(Invocation invocation) {
+                    return invocation.isVerified();
+                }
+
+                @Override
+                public void markVerified(Invocation i) {
+                }
+            };
+
+            final Invocation unverified = new InvocationsFinder().findFirstMatchingUnverifiedInvocation(data.getAllInvocations(), matcher, ctx);
+
+            if (unverified != null) {
+                new Reporter().noMoreInteractionsWanted(unverified, (List) data.getAllInvocations());
+            }
+        }
+    }
+
+    public static ZeroInteractions zeroInteractions() {
+        return new ZeroInteractions();
     }
 }
